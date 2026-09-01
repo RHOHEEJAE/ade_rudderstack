@@ -1,0 +1,25 @@
+{
+	"name": "example-cloudflare-worker",
+	"version": "0.0.1",
+	"private": true,
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"start": "wrangler dev",
+		"build": "exit 0",
+		"config": "node scripts/update-wrangler-config.js",
+		"clean": "rm -rf node_modules package-lock.json",
+		"setup": "npm install",
+		"setup:ci": "npm ci",
+		"verify": "wrangler deploy --dry-run"
+	},
+	"devDependencies": {
+		"dotenv": "17.4.2",
+		"wrangler": "4.93.1"
+	},
+	"dependencies": {
+		"@rudderstack/analytics-js-service-worker": "*",
+		"@vespaiach/axios-fetch-adapter": "0.3.1",
+		"host-proxy": "1.0.2",
+		"http-forward": "0.1.3"
+	}
+}

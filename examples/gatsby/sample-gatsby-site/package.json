@@ -1,0 +1,43 @@
+{
+  "name": "sample-gatsby-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "sample-gatsby-site",
+  "author": "RudderStack",
+  "keywords": [
+    "gatsby"
+  ],
+  "scripts": {
+    "develop": "gatsby develop",
+    "start": "gatsby develop",
+    "build": "gatsby build",
+    "serve": "gatsby serve",
+    "clean": "rm -rf node_modules public .cache",
+    "setup": "npm install",
+    "setup:ci": "npm ci",
+    "verify": "node ../../utils/mock-servers/verify-with-mock.js .",
+    "clean:fresh": "npm run clean && rm -rf package-lock.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@rudderstack/analytics-js": "*",
+    "dotenv": "17.4.2",
+    "gatsby": "5.16.1",
+    "gatsby-plugin-env-variables": "2.3.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.1",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "typescript": "7.0.2"
+  },
+  "overrides": {
+    "cookie": "0.7.0",
+    "path-to-regexp": "0.1.12",
+    "axios": {
+      "form-data": "4.0.4"
+    }
+  }
+}

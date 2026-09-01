@@ -1,0 +1,68 @@
+{
+  "name": "@rudderstack/analytics-js-plugins",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/analytics-js-plugins/src",
+  "projectType": "library",
+  "tags": [
+    "type:lib",
+    "scope:plugins"
+  ],
+  "targets": {
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": [
+        "{workspaceRoot}/coverage/{projectRoot}"
+      ],
+      "options": {
+        "jestConfig": "packages/analytics-js-plugins/jest.config.mjs",
+        "passWithNoTests": true,
+        "codeCoverage": true,
+        "watchAll": false,
+        "forceExit": true
+      },
+      "configurations": {
+        "ci": {
+          "ci": true,
+          "codeCoverage": true
+        }
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": [
+        "{options.outputFile}"
+      ],
+      "options": {
+        "hasTypeAwareRules": true,
+        "lintFilePatterns": [
+          "packages/analytics-js-plugins/src/**/*.{ts,js}",
+          "packages/analytics-js-plugins/{package,project}.json"
+        ]
+      },
+      "configurations": {
+        "ci": {
+          "force": true,
+          "outputFile": "packages/analytics-js-plugins/reports/eslint.json",
+          "format": "json"
+        }
+      }
+    },
+    "version": {
+      "executor": "@jscutlery/semver:version",
+      "options": {
+        "preset": "conventionalcommits",
+        "tagPrefix": "{projectName}@",
+        "trackDeps": true
+      }
+    },
+    "github": {
+      "executor": "@jscutlery/semver:github",
+      "options": {
+        "tag": "@rudderstack/analytics-js-plugins@3.16.0",
+        "title": "@rudderstack/analytics-js-plugins@3.16.0",
+        "discussion-category": "@rudderstack/analytics-js-plugins@3.16.0",
+        "notesFile": "./packages/analytics-js-plugins/CHANGELOG_LATEST.md"
+      }
+    }
+  }
+}

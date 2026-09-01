@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link
+        rel="icon"
+        href="https://www.rudderstack.com/favicon.ico"
+        type="image/x-icon"
+        sizes="48x48" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RudderStack JS SDK - All Sanity Suites</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            margin: 0 0 10px 0;
+        }
+
+        .header p {
+            color: #7f8c8d;
+            margin: 0;
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .execute-all-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .execute-all-btn:hover {
+            background: #2980b9;
+        }
+
+        .execute-all-btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .execute-all-btn[style*="e67e22"]:hover {
+            background: #d35400 !important;
+        }
+
+        .status {
+            text-align: center;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status.info {
+            background: #cce7ff;
+            color: #004085;
+        }
+
+        .iframe-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .iframe-wrapper {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .iframe-header {
+            background: #34495e;
+            color: white;
+            padding: 10px 15px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .iframe-status {
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 3px;
+            background: #2c3e50;
+        }
+
+        .iframe-status.loaded {
+            background: #f39c12;
+        }
+
+        .iframe-status.ready {
+            background: #27ae60;
+        }
+
+        .iframe-status.error {
+            background: #e74c3c;
+        }
+
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: none;
+            display: block;
+        }
+
+        .refresh-btn {
+            background: #95a5a6;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            font-size: 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        .refresh-btn:hover {
+            background: #7f8c8d;
+        }
+
+        @media (max-width: 768px) {
+            .iframe-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .instructions {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .instructions h3 {
+            margin-top: 0;
+        }
+
+        .global-results {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .global-results-header {
+            background: #34495e;
+            color: white;
+            padding: 15px;
+            font-weight: bold;
+            text-align: center;
+            font-size: 18px;
+        }
+
+        .global-results-content {
+            padding: 20px;
+        }
+
+        .overall-status {
+            text-align: center;
+            padding: 20px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .overall-status.pending {
+            background: #f8f9fa;
+            color: #6c757d;
+            border: 2px dashed #dee2e6;
+        }
+
+        .overall-status.running {
+            background: #cce7ff;
+            color: #004085;
+            border: 2px solid #b3d7ff;
+        }
+
+        .overall-status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #c3e6cb;
+        }
+
+        .overall-status.failed {
+            background: #f8d7da;
+            color: #721c24;
+            border: 2px solid #f5c6cb;
+        }
+
+        .overall-status.timeout {
+            background: #fff3cd;
+            color: #856404;
+            border: 2px solid #ffeaa7;
+        }
+
+        .individual-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .result-item {
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .result-item.pending {
+            background: #f8f9fa;
+            color: #6c757d;
+            border: 1px solid #dee2e6;
+        }
+
+        .result-item.running {
+            background: #cce7ff;
+            color: #004085;
+            border: 1px solid #b3d7ff;
+        }
+
+        .result-item.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .result-item.failed {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .result-item.cors-blocked {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .result-item-name {
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .result-item-status {
+            font-size: 16px;
+        }
+
+        .polling-info {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 14px;
+            color: #6c757d;
+        }
+
+        .reset-results-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 15px;
+        }
+
+        .reset-results-btn:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 RudderStack JS SDK - All Sanity Suites</h1>
+        <p>Unified testing interface for all sanity suites</p>
+    </div>
+
+    <div class="instructions">
+        <h3>📋 How to Use This</h3>
+        <ul>
+            <li><strong>🎯 Step 1:</strong> Wait for all iframes to load and SDKs to be ready (status will show "Ready")</li>
+            <li><strong>🚀 Step 2:</strong> Click "Execute All" below to attempt automatic triggering</li>
+            <li><strong>👆 Step 3:</strong> If automatic fails (likely due to CORS), manually click the "Execute All" button in each iframe</li>
+            <li><strong>🔄 Troubleshooting:</strong> Use individual refresh buttons if any suite fails to load or is not ready</li>
+        </ul>
+        <div style="margin-top: 10px; padding: 8px; background: #e8f4fd; border-radius: 4px; font-size: 14px;">
+            <strong>💡 Pro Tip:</strong> The automatic execution will likely be blocked by browser security. This is normal! 
+            Just manually click "Execute All" in each iframe after the attempt.
+        </div>
+    </div>
+
+    <div class="global-results">
+        <div class="global-results-header">
+            📊 Test Results
+        </div>
+        <div class="global-results-content">
+            <div class="overall-status pending" id="overallStatus">
+                🏁 Waiting for test execution...
+            </div>
+            
+            <div class="individual-results" id="individualResults">
+                <div class="result-item pending" id="result-0">
+                    <div class="result-item-name">V3 CDN Suite</div>
+                    <div class="result-item-status">Pending</div>
+                </div>
+                <div class="result-item pending" id="result-1">
+                    <div class="result-item-name">V3 NPM Suite</div>
+                    <div class="result-item-status">Pending</div>
+                </div>
+                <div class="result-item pending" id="result-2">
+                    <div class="result-item-name">V1.1 CDN Suite</div>
+                    <div class="result-item-status">Pending</div>
+                </div>
+                <div class="result-item pending" id="result-3">
+                    <div class="result-item-name">V1.1 NPM Suite</div>
+                    <div class="result-item-status">Pending</div>
+                </div>
+            </div>
+            
+            <div class="polling-info" id="pollingInfo" style="display: none;">
+                Polling for results... <span id="pollingCounter">0</span>s elapsed
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="execute-all-btn" id="executeAllBtn" onclick="executeAll()">
+            🎯 Execute All Sanity Suites
+        </button>
+        <button class="execute-all-btn" id="reloadAllBtn" onclick="reloadAll()" style="background: #e67e22; margin-left: 15px;">
+            🔄 Reload All Sanity Suites
+        </button>
+        <button class="reset-results-btn" id="resetResultsBtn" onclick="resetResults()">
+            🗑️ Reset Results
+        </button>
+        <div class="status" id="statusDiv" style="display: none;"></div>
+    </div>
+
+    <div class="iframe-container">
+        <div class="iframe-wrapper">
+            <div class="iframe-header">
+                <span>V3 CDN Suite</span>
+                <span>
+                    <span class="iframe-status" id="status-0">Loading...</span>
+                    <button class="refresh-btn" onclick="refreshIframe(0)">↻</button>
+                </span>
+            </div>
+            <iframe 
+                id="iframe-v3-cdn" 
+                src="__BASE_CDN_URL__/sanity-suite__ENV_PATH__/v3/cdn/index.html"
+                onload="markLoaded(0)"
+                onerror="markError(0)"
+            ></iframe>
+        </div>
+
+        <div class="iframe-wrapper">
+            <div class="iframe-header">
+                <span>V3 NPM Suite</span>
+                <span>
+                    <span class="iframe-status" id="status-1">Loading...</span>
+                    <button class="refresh-btn" onclick="refreshIframe(1)">↻</button>
+                </span>
+            </div>
+            <iframe 
+                id="iframe-v3-npm" 
+                src="__BASE_CDN_URL__/sanity-suite__ENV_PATH__/v3/npm/index.html"
+                onload="markLoaded(1)"
+                onerror="markError(1)"
+            ></iframe>
+        </div>
+
+        <div class="iframe-wrapper">
+            <div class="iframe-header">
+                <span>V1.1 CDN Suite</span>
+                <span>
+                    <span class="iframe-status" id="status-2">Loading...</span>
+                    <button class="refresh-btn" onclick="refreshIframe(2)">↻</button>
+                </span>
+            </div>
+            <iframe 
+                id="iframe-v1.1-cdn" 
+                src="__BASE_CDN_URL__/sanity-suite__ENV_PATH__/v1.1/cdn/index.html"
+                onload="markLoaded(2)"
+                onerror="markError(2)"
+            ></iframe>
+        </div>
+
+        <div class="iframe-wrapper">
+            <div class="iframe-header">
+                <span>V1.1 NPM Suite</span>
+                <span>
+                    <span class="iframe-status" id="status-3">Loading...</span>
+                    <button class="refresh-btn" onclick="refreshIframe(3)">↻</button>
+                </span>
+            </div>
+            <iframe 
+                id="iframe-v1.1-npm" 
+                src="__BASE_CDN_URL__/sanity-suite__ENV_PATH__/v1.1/npm/index.html"
+                onload="markLoaded(3)"
+                onerror="markError(3)"
+            ></iframe>
+        </div>
+    </div>
+
+    <script>
+        var iframes = document.querySelectorAll('iframe');
+        var statusDiv = document.getElementById('statusDiv');
+        var executeBtn = document.getElementById('executeAllBtn');
+        
+        var loadedCount = 0;
+        var readyCount = 0;
+        var totalFrames = iframes.length;
+
+        // Global result tracking
+        var pollingInterval = null;
+        var pollingStartTime = null;
+        var pollingTimeoutId = null;
+        var POLLING_TIMEOUT_MS = 120000; // 2 minutes
+        var POLLING_INTERVAL_MS = 1000; // 1 second
+        
+        var suiteNames = [
+            'V3 CDN Suite',
+            'V3 NPM Suite', 
+            'V1.1 CDN Suite',
+            'V1.1 NPM Suite'
+        ];
+        
+        var suiteResults = {
+            0: { status: 'pending', name: suiteNames[0] },
+            1: { status: 'pending', name: suiteNames[1] },
+            2: { status: 'pending', name: suiteNames[2] },
+            3: { status: 'pending', name: suiteNames[3] }
+        };
+
+        function resetResults() {
+            console.log('🔄 Resetting all results...');
+            
+            // Stop any ongoing polling
+            stopPolling();
+            
+            // Reset all suite results
+            for (var i = 0; i < totalFrames; i++) {
+                suiteResults[i] = { status: 'pending', name: suiteNames[i] };
+                updateIndividualResult(i, 'pending', 'Pending');
+            }
+            
+            // Reset overall status
+            updateOverallStatus('pending', '🏁 Waiting for test execution...');
+            
+            showStatus('🔄 Results reset. Ready for new test execution.', 'info');
+        }
+
+        function startResultPolling() {
+            console.log('🚀 Starting result polling...');
+            
+            // Stop any existing polling
+            stopPolling();
+            
+            // Reset all results to running state
+            for (var i = 0; i < totalFrames; i++) {
+                suiteResults[i].status = 'running';
+                updateIndividualResult(i, 'running', 'Running...');
+            }
+            
+            updateOverallStatus('running', '⏳ Tests running... Polling for results...');
+            
+            // Show polling info
+            document.getElementById('pollingInfo').style.display = 'block';
+            
+            pollingStartTime = Date.now();
+            
+            // Start polling interval
+            pollingInterval = setInterval(pollForResults, POLLING_INTERVAL_MS);
+            
+            // Set timeout to stop polling after maximum time
+            pollingTimeoutId = setTimeout(function() {
+                console.log('⏰ Polling timeout reached');
+                stopPolling();
+                handlePollingTimeout();
+            }, POLLING_TIMEOUT_MS);
+            
+            // Poll immediately for first check
+            pollForResults();
+        }
+
+        function stopPolling() {
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
+            
+            if (pollingTimeoutId) {
+                clearTimeout(pollingTimeoutId);
+                pollingTimeoutId = null;
+            }
+            
+            document.getElementById('pollingInfo').style.display = 'none';
+        }
+
+        function pollForResults() {
+            var elapsedSeconds = Math.floor((Date.now() - pollingStartTime) / 1000);
+            document.getElementById('pollingCounter').textContent = elapsedSeconds;
+            
+            var completedCount = 0;
+            var hasFailures = false;
+            var corsBlockedCount = 0;
+            
+            for (var i = 0; i < totalFrames; i++) {
+                var iframe = iframes[i];
+                var currentStatus = suiteResults[i].status;
+                
+                // Skip if already completed (success or failed)
+                if (currentStatus === 'success' || currentStatus === 'failed' || currentStatus === 'cors-blocked') {
+                    completedCount++;
+                    if (currentStatus === 'failed') hasFailures = true;
+                    if (currentStatus === 'cors-blocked') corsBlockedCount++;
+                    continue;
+                }
+                
+                try {
+                    var resultElement = iframe.contentWindow.document.getElementById('resultStatus');
+                    
+                    if (resultElement) {
+                        var resultText = resultElement.textContent || resultElement.innerText || '';
+                        console.log('📊 iframe ' + i + ' result: "' + resultText + '"');
+                        
+                        if (resultText.toLowerCase().indexOf('success') !== -1) {
+                            suiteResults[i].status = 'success';
+                            updateIndividualResult(i, 'success', '✅ Success');
+                            completedCount++;
+                        } else if (resultText.toLowerCase().indexOf('fail') !== -1) {
+                            suiteResults[i].status = 'failed';
+                            updateIndividualResult(i, 'failed', '❌ Failed');
+                            completedCount++;
+                            hasFailures = true;
+                        } else if (resultText.replace(/\s/g, '') !== '') {
+                            // Some other status text, keep polling
+                            updateIndividualResult(i, 'running', '⏳ ' + resultText);
+                        }
+                    }
+                } catch (corsError) {
+                    // CORS blocked - mark as such and count as completed
+                    if (currentStatus !== 'cors-blocked') {
+                        console.log('🚫 CORS blocked for iframe ' + i + ', cannot read results');
+                        suiteResults[i].status = 'cors-blocked';
+                        updateIndividualResult(i, 'cors-blocked', '🔒 CORS Blocked');
+                        completedCount++;
+                        corsBlockedCount++;
+                    }
+                }
+            }
+            
+            // Update overall status if all completed
+            if (completedCount === totalFrames) {
+                stopPolling();
+                
+                if (corsBlockedCount === totalFrames) {
+                    updateOverallStatus('timeout', '🔒 All results blocked by CORS - Check manually');
+                } else if (hasFailures) {
+                    updateOverallStatus('failed', '❌ Tests Failed - At least one suite reported failure');
+                } else {
+                    updateOverallStatus('success', '✅ All Tests Passed!');
+                }
+                
+                console.log('🏁 All results collected, polling stopped');
+            }
+        }
+
+        function updateIndividualResult(index, status, statusText) {
+            var resultElement = document.getElementById('result-' + index);
+            var statusElement = resultElement.querySelector('.result-item-status');
+            
+            // Remove all status classes (IE 11 compatible way)
+            var classList = resultElement.classList;
+            classList.remove('pending');
+            classList.remove('running');
+            classList.remove('success');
+            classList.remove('failed');
+            classList.remove('cors-blocked');
+            classList.remove('timeout');
+            
+            // Add new status class
+            classList.add(status);
+            
+            // Update status text
+            statusElement.textContent = statusText;
+        }
+
+        function updateOverallStatus(status, message) {
+            var overallElement = document.getElementById('overallStatus');
+            
+            // Remove all status classes (IE 11 compatible way)
+            var classList = overallElement.classList;
+            classList.remove('pending');
+            classList.remove('running');
+            classList.remove('success');
+            classList.remove('failed');
+            classList.remove('timeout');
+            
+            // Add new status class
+            classList.add(status);
+            
+            // Update message
+            overallElement.textContent = message;
+        }
+
+        function handlePollingTimeout() {
+            var completedCount = 0;
+            var hasFailures = false;
+            
+            for (var i = 0; i < totalFrames; i++) {
+                var status = suiteResults[i].status;
+                if (status === 'success' || status === 'failed' || status === 'cors-blocked') {
+                    completedCount++;
+                    if (status === 'failed') hasFailures = true;
+                } else {
+                    // Mark incomplete as timeout
+                    suiteResults[i].status = 'timeout';
+                    updateIndividualResult(i, 'timeout', '⏰ Timeout');
+                }
+            }
+            
+            if (hasFailures) {
+                updateOverallStatus('failed', '❌ Tests Failed - Timeout reached with failures');
+            } else {
+                updateOverallStatus('timeout', '⏰ Polling timeout reached - Check results manually');
+            }
+        }
+
+        function markLoaded(index) {
+            var statusElement = document.getElementById('status-' + index);
+            statusElement.textContent = 'Loaded';
+            statusElement.classList.add('loaded');
+            
+            loadedCount++;
+            
+            // Give iframe a moment to fully initialize before checking readiness
+            setTimeout(function() {
+                checkIfReady(index);
+            }, 500);
+            
+            updateMainStatus();
+        }
+
+        function checkIfReady(index) {
+            var iframe = iframes[index];
+            var statusElement = document.getElementById('status-' + index);
+            
+            // Check if iframe exists and has contentWindow
+            if (!iframe) {
+                console.error('❌ Iframe ' + index + ' not found');
+                return;
+            }
+            
+            if (!iframe.contentWindow) {
+                console.log('⏳ Iframe ' + index + ' contentWindow not ready, retrying in 1 second...');
+                setTimeout(function() {
+                    checkIfReady(index);
+                }, 1000);
+                return;
+            }
+            
+            try {
+                // Try to detect if Execute All button is available
+                var executeButton = iframe.contentWindow.document.querySelector('#execute-all-trigger');
+                if (executeButton && executeButton.offsetParent !== null) {
+                    // Button exists and is visible
+                    markReady(index);
+                } else {
+                    // Button not found or not visible, retry in 1 second
+                    setTimeout(function() {
+                        checkIfReady(index);
+                    }, 1000);
+                }
+            } catch (crossOriginError) {
+                // Cross-origin blocked, assume ready since we can't check
+                // This is expected behavior for external domains
+                console.error('🔒 Cannot check readiness for iframe ' + index + ' due to CORS, assuming ready', crossOriginError);
+                markReady(index);
+            }
+        }
+
+        function markReady(index) {
+            var statusElement = document.getElementById('status-' + index);
+            if (!statusElement.classList.contains('ready')) {
+                statusElement.textContent = 'Ready';
+                statusElement.classList.remove('loaded');
+                statusElement.classList.add('ready');
+                
+                readyCount++;
+                updateMainStatus();
+                
+                console.log('✅ Iframe ' + index + ' is ready for execution');
+            }
+        }
+
+        function markError(index) {
+            var statusElement = document.getElementById('status-' + index);
+            statusElement.textContent = 'Error';
+            statusElement.classList.add('error');
+            
+            loadedCount++; // Count errors as "loaded" for button enabling
+            updateMainStatus();
+        }
+
+        function updateMainStatus() {
+            if (readyCount > 0) {
+                executeBtn.disabled = false;
+                if (readyCount === totalFrames) {
+                    showStatus('🎯 All sanity suites ready! Click Execute All to run all tests.', 'success');
+                } else {
+                    showStatus('⚡ ' + readyCount + '/' + totalFrames + ' suites ready. Execute All will run available tests.', 'success');
+                }
+            } else if (loadedCount === totalFrames) {
+                showStatus('⏳ All sanity suites loaded. Checking readiness...', 'info');
+            }
+        }
+
+        function forceReloadIframe(iframe, index) {
+            console.log('🔄 Force reloading iframe ' + index + '...');
+            
+            try {
+                // Method 1: Try contentWindow.location.reload() (most reliable but often blocked by CORS)
+                if (iframe.contentWindow && iframe.contentWindow.location) {
+                    iframe.contentWindow.location.reload(true);
+                    console.log('✅ Method 1 (contentWindow.reload) used for iframe ' + index);
+                    return;
+                }
+            } catch (error) {
+                console.log('🚫 Method 1 failed for iframe ' + index + ': ' + error.message);
+            }
+            
+            // Method 2: Simple src reset (works but may not bypass cache)
+            iframe.src = iframe.src;
+            console.log('🔄 Method 2 (src reset) used for iframe ' + index);
+        }
+
+        function refreshIframe(index) {
+            var iframe = iframes[index];
+            var statusElement = document.getElementById('status-' + index);
+            
+            // Update counters if this iframe was previously ready (check BEFORE removing classes)
+            if (statusElement.classList.contains('ready')) {
+                readyCount--;
+            }
+            if (statusElement.classList.contains('loaded')) {
+                loadedCount--;
+            }
+            
+            statusElement.textContent = 'Loading...';
+            statusElement.classList.remove('loaded');
+            statusElement.classList.remove('ready');
+            statusElement.classList.remove('error');
+            
+            // Use the new force reload method
+            forceReloadIframe(iframe, index);
+            
+            updateMainStatus();
+        }
+
+        function reloadAll() {
+            var reloadBtn = document.getElementById('reloadAllBtn');
+            var executeBtn = document.getElementById('executeAllBtn');
+            
+            // Disable buttons during reload
+            reloadBtn.disabled = true;
+            executeBtn.disabled = true;
+            
+            // Reset global results
+            resetResults();
+            
+            // Reset counters
+            loadedCount = 0;
+            readyCount = 0;
+            
+            // Show loading status
+            showStatus('🔄 Reloading all sanity suites...', 'info');
+            
+            // Reload all iframes with staggered timing
+            for (var i = 0; i < iframes.length; i++) {
+                (function(index) {
+                    setTimeout(function() {
+                        var statusElement = document.getElementById('status-' + index);
+                        statusElement.textContent = 'Loading...';
+                        statusElement.classList.remove('loaded');
+                        statusElement.classList.remove('ready');
+                        statusElement.classList.remove('error');
+                        
+                        // Force reload without modifying URL - try multiple methods
+                        forceReloadIframe(iframes[index], index);
+                        
+                    }, index * 100); // Stagger reloads by 100ms each
+                })(i);
+            }
+            
+            // Re-enable reload button after all attempts
+            setTimeout(function() {
+                reloadBtn.disabled = false;
+                showStatus('🔄 All sanity suites reloading... Check individual status indicators.', 'info');
+            }, iframes.length * 300 + 1000);
+        }
+
+        function showStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + type;
+            statusDiv.style.display = 'block';
+            
+            setTimeout(function() {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function executeAll() {
+            executeBtn.disabled = true;
+            showStatus('🚀 Attempting to execute all sanity suites...', 'info');
+            
+            var attemptCount = 0;
+            var crossOriginBlocked = 0;
+            
+            for (var i = 0; i < iframes.length; i++) {
+                attemptCount++;
+                
+                var iframe = iframes[i];
+                
+                // Method 1: Try to access iframe content directly (will likely fail due to CORS)
+                try {
+                    var executeButton = iframe.contentWindow.document.querySelector('#execute-all-trigger');
+                    if (executeButton) {
+                        executeButton.click();
+                        console.log('✅ Successfully clicked execute button in iframe ' + i);
+                        continue;
+                    } else {
+                        console.log('⚠️ Execute button not found in iframe ' + i);
+                    }
+                } catch (crossOriginError) {
+                    crossOriginBlocked++;
+                    console.error('🚫 Cross-origin blocked for iframe ' + i + ':', crossOriginError.message, crossOriginError);
+                }
+            }
+            
+            // Start result polling regardless of whether execution was successful
+            startResultPolling();
+            
+            // Show realistic status based on what we know
+            if (crossOriginBlocked === attemptCount) {
+                showStatus('🔒 All sanity suites blocked by browser security (expected). Please manually click "Execute All" in each iframe above. Polling for results started.', 'info');
+                highlightManualInstructions();
+            } else if (crossOriginBlocked > 0) {
+                showStatus('⚠️ ' + crossOriginBlocked + '/' + attemptCount + ' suites blocked by CORS. Check console and manually execute if needed. Polling for results started.', 'info');
+            } else {
+                showStatus('🎯 Attempted to trigger all sanity suites. Polling for results started.', 'success');
+            }
+            
+            executeBtn.disabled = false;
+        }
+
+        function highlightManualInstructions() {
+            var instructions = document.querySelector('.instructions');
+            instructions.style.background = '#ffeaa7';
+            instructions.style.border = '2px solid #fdcb6e';
+            instructions.style.animation = 'pulse 2s infinite';
+            
+            // Add pulse animation
+            if (!document.querySelector('#pulse-animation')) {
+                var style = document.createElement('style');
+                style.id = 'pulse-animation';
+                style.textContent = '@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }';
+                document.head.appendChild(style);
+            }
+            
+            setTimeout(function() {
+                instructions.style.animation = '';
+                instructions.style.background = '#fff3cd';
+                instructions.style.border = '1px solid #ffeaa7';
+            }, 6000);
+        }
+
+        // Initially disable the execute button
+        executeBtn.disabled = true;
+        
+        // Set a timeout to enable the button even if some iframes fail to load
+        setTimeout(function() {
+            if (executeBtn.disabled) {
+                executeBtn.disabled = false;
+                showStatus('⏰ Timeout reached. You can now attempt to execute all sanity suites.', 'info');
+            }
+        }, 10000); // 10 second timeout
+    </script>
+</body>
+</html> 

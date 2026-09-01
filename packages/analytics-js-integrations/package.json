@@ -1,0 +1,120 @@
+{
+  "name": "@rudderstack/analytics-js-integrations",
+  "version": "3.24.3",
+  "private": true,
+  "type": "module",
+  "description": "RudderStack JavaScript SDK device mode integrations",
+  "main": "src/index.js",
+  "module": "src/index.js",
+  "types": "./dist/npm/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "*": [
+        "./dist/npm/index.d.ts"
+      ]
+    }
+  },
+  "publishConfig": {},
+  "files": [
+    "dist/npm",
+    "LICENSE.md",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "keywords": [
+    "analytics",
+    "rudder"
+  ],
+  "author": "RudderStack",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rudderlabs/rudder-sdk-js.git",
+    "directory": "packages/analytics-js-integrations"
+  },
+  "bugs": {
+    "url": "https://github.com/rudderlabs/rudder-sdk-js/issues"
+  },
+  "homepage": "https://github.com/rudderlabs/rudder-sdk-js/blob/main/packages/analytics-js-integrations/README.md",
+  "scripts": {
+    "clean": "rimraf -rf ./dist && rimraf -rf ./node_modules/.cache && rimraf -rf ./reports",
+    "start": "npm run build && npm run serve",
+    "start:modern": "npm run build:modern && npm run serve",
+    "build": "npm run build:browser && npm run build:package",
+    "build:modern": "npm run build:browser:modern && npm run build:package:modern",
+    "build:browser": "npm run build:integration:all",
+    "build:browser:modern": "npm run build:integration:all:modern",
+    "build:npm": "tsc",
+    "build:npm:modern": "BROWSERSLIST_ENV=modern npm run build:npm",
+    "build:package": "npm run build:npm",
+    "build:package:modern": "npm run build:npm:modern",
+    "test": "nx test --maxWorkers=50%",
+    "test:ci": "nx test --configuration=ci --runInBand --maxWorkers=1 --forceExit",
+    "check:lint": "nx lint",
+    "check:lint:ci": "nx lint --configuration=ci",
+    "check:size:build": "npm run build:browser && npm run build:browser:modern && npm run build:package && npm run build:package:modern",
+    "check:size": "npm run check:size:build && size-limit",
+    "check:size:json": "size-limit --json",
+    "check:circular": "madge --circular --extensions js,ts src || exit 0",
+    "check:support": "NODE_ENV=production npx browserslist --mobile-to-desktop",
+    "check:support:modern": "NODE_ENV=modern npx browserslist --mobile-to-desktop",
+    "check:duplicates": "jscpd src",
+    "check:security": "npm audit --audit-level=high",
+    "serve": "npx serve ./dist -p 3005 --cors",
+    "package": "exit 0",
+    "release": "exit 0",
+    "build:integration": "rollup -c --environment PROD_DEBUG,ENV:prod,UGLIFY",
+    "build:integration:modern": "BROWSERSLIST_ENV=modern rollup -c --environment PROD_DEBUG,ENV:prod,UGLIFY",
+    "build:integration:bundle-size": "VISUALIZER=true npm run build:integration",
+    "build:integration:cli": "rollup -c --environment VERSION:$npm_package_version,PROD_DEBUG,ENV:prod,UGLIFY,INTG_NAME:$npm_config_intg",
+    "build:integration:bundle-size:cli": "rollup -c --environment VERSION:$npm_package_version,VISUALIZER:true,PROD_DEBUG,ENV:prod,UGLIFY,INTG_NAME:$npm_config_intg",
+    "build:integration:all": "node ./scripts/integrationBuildScript.js",
+    "build:integration:all:modern": "BROWSERSLIST_ENV=modern npm run build:integration:all",
+    "build:integration:all:bundle-size": "VISUALIZER=true npm run build:integration:all",
+    "build:integration:all:bundle-size:modern": "VISUALIZER=true npm run build:integration:all:modern"
+  },
+  "dependencies": {
+    "@rudderstack/analytics-js-legacy-utilities": "*",
+    "@ndhoule/each": "2.0.1",
+    "crypto-js": "4.2.0",
+    "is": "3.3.2",
+    "md5": "2.3.0",
+    "obj-case": "0.2.1",
+    "on-body": "0.0.1",
+    "component-each": "0.2.6",
+    "@ndhoule/extend": "2.0.0",
+    "@lukeed/uuid": "2.0.1",
+    "get-value": "4.1.0",
+    "ramda": "0.32.0"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.0",
+    "@rollup/plugin-alias": "6.0.0",
+    "@rollup/plugin-babel": "7.0.0",
+    "@rollup/plugin-commonjs": "29.0.2",
+    "@rollup/plugin-json": "6.1.0",
+    "@rollup/plugin-node-resolve": "16.0.3",
+    "@rollup/plugin-replace": "6.0.3",
+    "@rollup/plugin-terser": "1.0.0",
+    "dotenv": "17.4.2",
+    "rollup-plugin-filesize": "10.0.0",
+    "rollup-plugin-polyfill-node": "0.13.0",
+    "rollup-plugin-typescript2": "0.37.0",
+    "rollup-plugin-visualizer": "7.0.1"
+  },
+  "overrides": {},
+  "browserslist": {
+    "production": [
+      "defaults",
+      "Edge >= 80",
+      "Firefox >= 47",
+      "IE >= 11",
+      "Chrome >= 54",
+      "Safari >= 7",
+      "Opera >= 43"
+    ],
+    "modern": [
+      "defaults and supports es6-module-dynamic-import and not dead"
+    ]
+  }
+}

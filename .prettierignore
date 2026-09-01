@@ -1,0 +1,15 @@
+# Include patterns from .gitignore
+# .gitignore
+
+# Additional Prettier-specific ignore patterns
+assets/
+CHANGELOG.md
+CHANGELOG_LATEST.md
+CONTRIBUTING.md
+examples/chrome-extension/**/rudderAnalytics.js
+examples/chrome-extension/**/foreground.js
+examples/**/index.html
+examples/gatsby/sample-gatsby-site/public/
+examples/gatsby/sample-gatsby-plugin-usage/public/
+**/nativeSdkLoader.js
+composer.lock

@@ -1,0 +1,7 @@
+#index:
+#    path: /
+#    controller: App\Controller\DefaultController::index
+
+rudderstack_home:
+    path: /
+    controller: App\Controller\RudderstackController::index

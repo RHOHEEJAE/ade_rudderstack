@@ -1,0 +1,171 @@
+name: Security, Code Quality and Bundle Size Checks
+
+on:
+  pull_request:
+    branches: ['develop', 'main', 'hotfix/*']
+    types: ['opened', 'reopened', 'synchronize']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_OPTIONS: '--no-warnings'
+  BASE_REF: ${{ github.event.pull_request.base.sha || 'HEAD' }}
+
+jobs:
+  get-affected-projects:
+    name: Get affected projects
+    runs-on: [self-hosted, Linux, X64]
+    outputs:
+      affected_projects: ${{ steps.check_affected.outputs.affected_projects }}
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Setup workspace
+        env:
+          HUSKY: 0
+        run: |
+          npm run setup:deps
+
+      - name: Check for affected projects
+        id: check_affected
+        run: |
+          AFFECTED_PROJECTS=$(npx nx show projects --affected --exclude=@rudderstack/analytics-js-sanity-suite --base=$BASE_REF | paste -sd ',' - | sed 's/,$//')
+          echo "Affected projects: $AFFECTED_PROJECTS"
+          echo "affected_projects=$AFFECTED_PROJECTS" >> $GITHUB_OUTPUT
+
+  bundle-size-checks:
+    name: Bundle size checks
+    runs-on: [self-hosted, Linux, X64]
+    needs: get-affected-projects
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Setup workspace
+        env:
+          HUSKY: 0
+        run: |
+          npm run setup:deps
+
+      - name: Execute bundle size checks
+        uses: rudderlabs/github-action-check-size-limit@3afc3f6011b321f501b901375737ba55d8aff29d # v3.0.0
+        if: ${{ needs.get-affected-projects.outputs.affected_projects != '' }}
+        env:
+          HUSKY: 0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          install_script: npm run setup:ci
+          build_script: npm run check:size:build -- --projects=${{ needs.get-affected-projects.outputs.affected_projects }}
+          script: npm run check:size:json:ci --silent -- --output-style=static --silent=true --projects=${{ needs.get-affected-projects.outputs.affected_projects }}
+          is_monorepo: true
+
+  code-quality-checks:
+    name: Code quality checks
+    runs-on: [self-hosted, Linux, X64]
+    needs: get-affected-projects
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Setup workspace
+        env:
+          HUSKY: 0
+        run: |
+          npm run setup:ci
+
+      - name: Build the project
+        run: |
+          npm run build:ci
+          npm run build:modern:ci
+
+      - name: Execute package linting checks
+        run: |
+          npm run check:pub:ci
+
+      - name: Execute code quality checks
+        if: ${{ needs.get-affected-projects.outputs.affected_projects != '' }}
+        run: |
+          npm run check:circular -- --projects=${{ needs.get-affected-projects.outputs.affected_projects }}
+          npm run check:duplicates -- --projects=${{ needs.get-affected-projects.outputs.affected_projects }}
+
+  security-checks:
+    name: Security checks
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Setup workspace
+        env:
+          HUSKY: 0
+        run: |
+          npm run setup:deps
+
+      - name: Execute security checks
+        run: |
+          npm run check:security

@@ -1,0 +1,199 @@
+{
+  "source": {
+    "id": "25YL7IX4j4g8Mmr98o5ipaQAOle",
+    "name": "js-test",
+    "writeKey": "25YL7MIwWWL3HPeEFT53GI5MxVh",
+    "config": {
+      "statsCollection": {
+        "errors": {
+          "enabled": true
+        },
+        "metrics": {
+          "enabled": true
+        }
+      }
+    },
+    "enabled": true,
+    "workspaceId": "1xXCSVsmPjqFKhRlpajnDXkGwYX",
+    "destinations": [
+      {
+        "id": "20Pa0T3VoQZZYPgh5LQS2vuwg3N",
+        "name": "android-test-amplitude",
+        "enabled": true,
+        "config": {
+          "apiKey": "7e515f72d0e7200e3bb539dd98b40642",
+          "groupTypeTrait": "test",
+          "groupValueTrait": "test_name",
+          "trackAllPages": true,
+          "trackCategorizedPages": true,
+          "trackNamedPages": true,
+          "traitsToIncrement": [
+            {
+              "traits": ""
+            }
+          ],
+          "traitsToSetOnce": [
+            {
+              "traits": ""
+            }
+          ],
+          "traitsToAppend": [
+            {
+              "traits": ""
+            }
+          ],
+          "traitsToPrepend": [
+            {
+              "traits": ""
+            }
+          ],
+          "trackProductsOnce": true,
+          "trackRevenuePerProduct": false,
+          "preferAnonymousIdForDeviceId": false,
+          "versionName": "",
+          "blacklistedEvents": [
+            {
+              "eventName": ""
+            }
+          ],
+          "whitelistedEvents": [
+            {
+              "eventName": "Login"
+            },
+            {
+              "eventName": "Page Viewed"
+            }
+          ],
+          "oneTrustCookieCategories": [
+            {
+              "oneTrustCookieCategory": ""
+            }
+          ],
+          "eventFilteringOption": "disable",
+          "mapDeviceBrand": false,
+          "residencyServer": "standard",
+          "sdkVersion": 1,
+          "attribution": false,
+          "eventUploadThreshold": "1",
+          "eventUploadPeriodMillis": "0",
+          "trackNewCampaigns": true
+        },
+        "destinationDefinitionId": "1QGzO4fWSyq3lsyFHf4eQAMDSr9",
+        "destinationDefinition": {
+          "name": "AM",
+          "displayName": "Amplitude"
+        },
+        "updatedAt": "2023-10-03T13:35:48.152Z",
+        "shouldApplyDeviceModeTransformation": true,
+        "propagateEventsUntransformedOnError": false
+      },
+      {
+        "id": "2FRVvO6ySmzXKiRl3o7I5BZqacK",
+        "name": "GA Test",
+        "enabled": true,
+        "config": {
+          "trackingID": "UA-987654098-1",
+          "doubleClick": false,
+          "enhancedLinkAttribution": false,
+          "includeSearch": false,
+          "trackCategorizedPages": true,
+          "trackNamedPages": true,
+          "useRichEventNames": false,
+          "sampleRate": "100",
+          "siteSpeedSampleRate": "1",
+          "resetCustomDimensionsOnPage": [
+            {
+              "resetCustomDimensionsOnPage": ""
+            }
+          ],
+          "setAllMappedProps": true,
+          "anonymizeIp": false,
+          "domain": "auto",
+          "enhancedEcommerce": false,
+          "nonInteraction": false,
+          "optimize": "",
+          "sendUserId": false,
+          "useGoogleAmpClientId": false,
+          "namedTracker": false,
+          "blacklistedEvents": [
+            {
+              "eventName": ""
+            }
+          ],
+          "whitelistedEvents": [
+            {
+              "eventName": ""
+            }
+          ],
+          "oneTrustCookieCategories": [
+            {
+              "oneTrustCookieCategory": ""
+            }
+          ],
+          "eventFilteringOption": "disable"
+        },
+        "destinationDefinitionId": "1QGzNyNSA4alXixnhDcq4C10ac2",
+        "destinationDefinition": {
+          "name": "GA",
+          "displayName": "Google Analytics"
+        },
+        "updatedAt": "2023-03-23T12:13:21.120Z",
+        "shouldApplyDeviceModeTransformation": true,
+        "propagateEventsUntransformedOnError": true
+      },
+      {
+        "id": "2OdymzEmiiQRWIcanvDP6ACR3eO",
+        "name": "Mixpanel js",
+        "enabled": true,
+        "config": {
+          "token": "e76d7549cd5dcfb3674cfa4a2f0f97ef",
+          "groupKeySettings": [],
+          "apiSecret": "e76d7549cd5dcfb3674cfa4a2f0f97ef",
+          "dataResidency": "us",
+          "people": false,
+          "setAllTraitsByDefault": false,
+          "superProperties": [],
+          "peopleProperties": [],
+          "eventIncrements": [],
+          "propIncrements": [],
+          "consolidatedPageCalls": true,
+          "trackCategorizedPages": false,
+          "trackNamedPages": false,
+          "sourceName": "",
+          "crossSubdomainCookie": false,
+          "persistence": "none",
+          "persistenceType": "cookie",
+          "persistenceName": "",
+          "secureCookie": false,
+          "blacklistedEvents": [],
+          "whitelistedEvents": [],
+          "oneTrustCookieCategories": [],
+          "eventFilteringOption": "disable",
+          "identityMergeApi": "original"
+        },
+        "destinationDefinitionId": "1QmWaiefYgYqxl9JGUe5PQio6bx",
+        "destinationDefinition": {
+          "name": "MP",
+          "displayName": "Mixpanel"
+        },
+        "updatedAt": "2023-08-28T05:13:33.171Z",
+        "shouldApplyDeviceModeTransformation": false,
+        "propagateEventsUntransformedOnError": false
+      }
+    ],
+    "updatedAt": "2023-08-02T12:42:54.176Z"
+  },
+  "updatedAt": "2024-01-09T11:27:50.223Z",
+  "consentManagementMetadata": {
+    "providers": [
+      {
+        "provider": "oneTrust",
+        "resolutionStrategy": "and"
+      },
+      {
+        "provider": "ketch",
+        "resolutionStrategy": "or"
+      }
+    ]
+  }
+}

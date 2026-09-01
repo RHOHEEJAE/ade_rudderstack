@@ -1,0 +1,42 @@
+import type { RudderAnalytics } from './app/RudderAnalytics';
+import type { RudderAnalyticsPreloader } from './components/preloadBuffer/types';
+
+export {
+  type AnonymousIdOptions,
+  type LoadOptions,
+  type SessionOpts,
+  type QueueOpts,
+  type BeaconQueueOpts,
+  type DestinationsQueueOpts,
+  type UaChTrackLevel,
+} from '@rudderstack/analytics-js-common/types/LoadOptions';
+export { type CookieSameSite } from '@rudderstack/analytics-js-common/types/Storage';
+export { type ApiCallback, type ApiOptions } from '@rudderstack/analytics-js-common/types/EventApi';
+export { type ApiObject } from '@rudderstack/analytics-js-common/types/ApiObject';
+export {
+  type CustomContext,
+  type InputCustomContext,
+  type InputCustomContextValue,
+  type CustomContextValue,
+} from '@rudderstack/analytics-js-common/types/CustomContext';
+export { type IntegrationOpts } from '@rudderstack/analytics-js-common/types/Integration';
+export { type LogLevel, type RSALogger } from '@rudderstack/analytics-js-common/types/Logger';
+export { type PluginName } from '@rudderstack/analytics-js-common/types/PluginsManager';
+export { type IdentifyTraits } from '@rudderstack/analytics-js-common/types/traits';
+export {
+  type RSAnalytics,
+  type RSACustomIntegration,
+  type CustomDestinationConfig,
+} from '@rudderstack/analytics-js-common/types/IRudderAnalytics';
+export { type RSAEvent } from '@rudderstack/analytics-js-common/types/Event';
+export {
+  type RudderAnalyticsPreloader,
+  type PreloadedEventCall,
+} from './components/preloadBuffer/types';
+export { RudderAnalytics } from './app/RudderAnalytics';
+export { type ConsentOptions } from '@rudderstack/analytics-js-common/types/Consent';
+declare global {
+  interface Window {
+    rudderanalytics: RudderAnalytics | RudderAnalyticsPreloader | undefined;
+  }
+}

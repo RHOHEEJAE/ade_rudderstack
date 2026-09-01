@@ -1,0 +1,133 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "cron"
+      # every wednesday at 00:01 UTC
+      cronjob: "1 0 * * 3"
+      timezone: "UTC"
+    target-branch: "develop"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    open-pull-requests-limit: 10
+    groups:
+      github-actions-deps:
+        patterns:
+          - "*"
+
+  # All deps for the monorepo root (prod + dev, including toolchain).
+  # Prod bumps are committed as `fix(deps):` so the release pipeline's conventional-commit
+  # analyzer picks them up and bumps the packages that consume them; dev bumps stay as `chore`.
+  # Override the PR title manually when a bump shouldn't trigger a release (e.g. toolchain-only).
+  # Note: Dependabot does not allow two npm entries for the same directory + target-branch,
+  # so per-group commit prefixes are not possible — keep this as a single entry.
+  - package-ecosystem: "npm"
+    cooldown:
+      default-days: 5
+    directory: "/"
+    schedule:
+      interval: "cron"
+      # every wednesday at 00:01 UTC
+      cronjob: "1 0 * * 3"
+      timezone: "UTC"
+    target-branch: "develop"
+    labels:
+      - "dependencies"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "fix"
+      prefix-development: "chore"
+      include: "scope"
+    groups:
+      npm-dev-deps:
+        patterns:
+          - "*"
+        dependency-type: "development"
+
+      npm-prod-deps:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+        dependency-type: "production"
+
+      npm-prod-major-deps:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+        dependency-type: "production"
+
+  # All sample applications managed together (excluding gatsby)
+  - package-ecosystem: "npm"
+    cooldown:
+      default-days: 5
+    directories:
+      - "/examples/angular/sample-app"
+      - "/examples/nextjs/hooks/sample-app"
+      - "/examples/nextjs/js/sample-app"
+      - "/examples/nextjs/page-router/sample-app"
+      - "/examples/nextjs/ts/sample-app"
+      - "/examples/reactjs/hooks/sample-app"
+      - "/examples/reactjs/js/sample-app"
+      - "/examples/reactjs/ts/sample-app"
+      - "/examples/reactjs/vite/sample-app"
+      - "/examples/serverless/cloudflare-worker"
+      - "/examples/serverless/vercel-edge"
+      - "/examples/symfony/sample"
+      - "/examples/integrations/Ninetailed/sample-apps/app-using-npm"
+      - "/examples/integrations/Ninetailed/sample-apps/app-using-v1.1-cdn"
+      - "/examples/integrations/Ninetailed/sample-apps/app-using-v3-cdn"
+    schedule:
+      interval: "cron"
+      # every wednesday at 00:01 UTC
+      cronjob: "1 0 * * 3"
+      timezone: "UTC"
+    target-branch: "develop"
+    labels:
+      - "dependencies"
+      - "sample-apps"
+    open-pull-requests-limit: 10
+    groups:
+      sample-apps-npm-deps:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "typescript"
+        update-types:
+          - version-update:semver-major
+
+  # Gatsby sample applications with special dependency ignores
+  - package-ecosystem: "npm"
+    cooldown:
+      default-days: 5
+    directories:
+      - "/examples/gatsby/sample-gatsby-plugin-usage"
+      - "/examples/gatsby/sample-gatsby-site"
+    schedule:
+      interval: "cron"
+      # every wednesday at 00:01 UTC
+      cronjob: "1 0 * * 3"
+      timezone: "UTC"
+    target-branch: "develop"
+    labels:
+      - "dependencies"
+      - "sample-apps"
+    open-pull-requests-limit: 10
+    groups:
+      gatsby-sample-apps-npm-deps:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "react"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "react-dom"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@types/react-dom"
+        update-types:
+          - version-update:semver-major

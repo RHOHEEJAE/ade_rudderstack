@@ -1,0 +1,89 @@
+name: Unit Tests and Lint
+
+on:
+  push:
+    branches: ['main', 'develop']
+  pull_request:
+    branches: ['main', 'develop', 'hotfix/*']
+    types: ['opened', 'reopened', 'synchronize']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_OPTIONS: '--no-warnings'
+  BASE_REF: ${{ github.event.pull_request.base.sha || 'HEAD' }}
+
+jobs:
+  test:
+    name: Unit Tests and Lint
+    runs-on: [self-hosted, Linux, X64]
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Setup workspace
+        env:
+          HUSKY: 0
+        run: |
+          npm run setup:deps
+
+      - name: Execute release versioning regression
+        run: |
+          npm run test:release-versioning
+
+      - name: Check for affected projects
+        id: check_affected
+        run: |
+          AFFECTED_PROJECTS=$(npx nx show projects --affected --base=$BASE_REF | tr '\n' ',')
+          echo "Affected projects: $AFFECTED_PROJECTS"
+          echo "affected_projects=$AFFECTED_PROJECTS" >> $GITHUB_OUTPUT
+
+      - name: Execute unit tests
+        if: ${{ steps.check_affected.outputs.affected_projects != '' }}
+        run: |
+          npm run test:ci
+
+      - name: Upload coverage reports to Codecov
+        if: ${{ steps.check_affected.outputs.affected_projects != '' }}
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        with:
+          files: ./packages/analytics-js/reports/coverage/clover.xml,./packages/analytics-js-common/reports/coverage/clover.xml,./packages/analytics-js-integrations/reports/coverage/clover.xml,./packages/analytics-js-plugins/reports/coverage/clover.xml,./packages/analytics-js-service-worker/reports/coverage/clover.xml,./packages/analytics-v1.1/reports/coverage/clover.xml,./packages/analytics-js-cookies/reports/coverage/clover.xml,./packages/analytics-js-legacy-utilities/reports/coverage/clover.xml
+
+      - name: Execute linting check
+        if: ${{ steps.check_affected.outputs.affected_projects != '' }}
+        run: |
+          npm run check:lint:ci
+
+      - name: Fix filesystem paths in generated reports
+        if: ${{ steps.check_affected.outputs.affected_projects != '' }}
+        run: |
+          ./scripts/fix-reports-path-in-github-runner.sh
+
+      - name: SonarQube Scan
+        if: ${{ steps.check_affected.outputs.affected_projects != '' }}
+        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

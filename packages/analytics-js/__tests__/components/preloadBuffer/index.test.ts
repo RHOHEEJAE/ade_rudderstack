@@ -1,0 +1,174 @@
+import {
+  consumePreloadBufferedEvent,
+  getEventDataFromQueryString,
+  getPreloadedLoadEvent,
+  promotePreloadedConsentEventsToTop,
+  retrieveEventsFromQueryString,
+  retrievePreloadBufferEvents,
+} from '../../../src/components/preloadBuffer';
+import type { PreloadedEventCall } from '../../../src/components/preloadBuffer/types';
+
+describe('Preload Buffer', () => {
+  const originalWindowLocation = window.location.href;
+
+  const analytics = {
+    enqueuePreloadBufferEvents: jest.fn(() => {}),
+    load: jest.fn(() => {}),
+  };
+
+  afterEach(() => {
+    window.history.pushState({}, '', originalWindowLocation);
+    (window as any).RudderStackGlobals = undefined;
+  });
+
+  it('should get event data from query string with allowed keys', () => {
+    const testUrlParams = new URLSearchParams('ajs_trait_dummy1=true&ajs_trait_dummy2=true');
+
+    expect(getEventDataFromQueryString(testUrlParams, 'ajs_trait_')).toStrictEqual({
+      dummy1: 'true',
+      dummy2: 'true',
+    });
+  });
+
+  it('should not get event data from query string with non allowed keys', () => {
+    const testUrlParams = new URLSearchParams('ajs_trait_dummy1=true&ajs_trait_dummy2=true');
+
+    expect(getEventDataFromQueryString(testUrlParams, 'ajs_dummy_')).toStrictEqual({});
+  });
+
+  it('should retrieve events data from query string with allowed keys', () => {
+    const testUrlParams = `${originalWindowLocation}?ajs_aid=asdfghjkl&ajs_uid=qzxcvbnm&ajs_event=dummyName&ajs_trait_dummy1=true&ajs_prop_dummy=true`;
+
+    window.history.pushState({}, '', testUrlParams);
+
+    const argumentsArray: PreloadedEventCall[] = [];
+    retrieveEventsFromQueryString(argumentsArray);
+
+    expect(window.location.href).toBe(testUrlParams);
+    expect(argumentsArray).toStrictEqual([
+      ['setAnonymousId', 'asdfghjkl'],
+      ['identify', 'qzxcvbnm', { dummy1: 'true' }],
+      ['track', 'dummyName', { dummy: 'true' }],
+    ]);
+  });
+
+  it('should retrieve identify event with only traits (no userId)', () => {
+    const testUrlParams = `${originalWindowLocation}?ajs_trait_email=test@example.com&ajs_trait_name=John`;
+
+    window.history.pushState({}, '', testUrlParams);
+
+    const argumentsArray: PreloadedEventCall[] = [];
+    retrieveEventsFromQueryString(argumentsArray);
+
+    expect(argumentsArray).toStrictEqual([
+      ['identify', { email: 'test@example.com', name: 'John' }],
+    ]);
+  });
+
+  it('should not add identify event when no userId or traits are present', () => {
+    const testUrlParams = `${originalWindowLocation}?ajs_event=dummyName&ajs_prop_dummy=true`;
+
+    window.history.pushState({}, '', testUrlParams);
+
+    const argumentsArray: PreloadedEventCall[] = [];
+    retrieveEventsFromQueryString(argumentsArray);
+
+    expect(argumentsArray).toStrictEqual([['track', 'dummyName', { dummy: 'true' }]]);
+  });
+
+  it('should retrieve the load event if any', () => {
+    const argumentsArray: PreloadedEventCall[] = [
+      ['track'],
+      ['load', { option1: true }],
+      ['track'],
+    ];
+
+    const loadEvent = getPreloadedLoadEvent(argumentsArray);
+
+    expect(loadEvent).toStrictEqual(['load', { option1: true }]);
+    expect(argumentsArray).toStrictEqual([['track'], ['track']]);
+  });
+
+  it('should retrieve all preloaded events from both array and query params', () => {
+    const testUrlParams = `${originalWindowLocation}?ajs_aid=asdfghjkl&ajs_uid=qzxcvbnm&ajs_event=dummyName&ajs_trait_dummy1=true&ajs_prop_dummy=true`;
+
+    window.history.pushState({}, '', testUrlParams);
+
+    (window as any).RudderStackGlobals = {
+      app: {
+        preloadedEventsBuffer: [['consent'], ['track'], ['track']],
+      },
+    };
+
+    retrievePreloadBufferEvents(analytics as any);
+
+    expect(analytics.enqueuePreloadBufferEvents).toHaveBeenCalledTimes(1);
+    expect(analytics.enqueuePreloadBufferEvents).toHaveBeenCalledWith([
+      ['setAnonymousId', 'asdfghjkl'],
+      ['identify', 'qzxcvbnm', { dummy1: 'true' }],
+      ['track', 'dummyName', { dummy: 'true' }],
+      ['consent'],
+      ['track'],
+      ['track'],
+    ]);
+
+    expect(analytics.load).toHaveBeenCalledTimes(0);
+  });
+
+  it('routes custom context and event calls through the analytics APIs in preload order', () => {
+    const callOrder: string[] = [];
+    const instance = {
+      setCustomContext: jest.fn(() => callOrder.push('set')),
+      clearCustomContext: jest.fn(() => callOrder.push('clear')),
+      track: jest.fn((event: { name: string }) => callOrder.push(`track:${event.name}`)),
+    };
+    const orderedCalls: PreloadedEventCall[] = [
+      ['track', 'before-update'],
+      ['setCustomContext', { version: 'runtime' }],
+      ['track', 'after-set'],
+      ['clearCustomContext'],
+      ['track', 'after-clear'],
+    ];
+
+    orderedCalls.forEach(call => consumePreloadBufferedEvent(call, instance as any));
+
+    expect(callOrder).toEqual([
+      'track:before-update',
+      'set',
+      'track:after-set',
+      'clear',
+      'track:after-clear',
+    ]);
+    expect(instance.setCustomContext).toHaveBeenCalledWith({ version: 'runtime' });
+    expect(instance.clearCustomContext).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not buffer any events if no preload array or query params exist', () => {
+    (window as any).RudderStackGlobals = {
+      app: {
+        preloadedEventsBuffer: [],
+      },
+    };
+
+    expect(analytics.enqueuePreloadBufferEvents).toHaveBeenCalledTimes(0);
+    expect(analytics.load).toHaveBeenCalledTimes(0);
+  });
+
+  it('should promote consent events to top if they exist in the preloaded events array', () => {
+    const argumentsArray: PreloadedEventCall[] = [
+      ['track'],
+      ['consent', { option1: true }],
+      ['track'],
+      ['consent', { option1: false }],
+    ];
+
+    promotePreloadedConsentEventsToTop(argumentsArray);
+
+    expect(argumentsArray).toStrictEqual([
+      ['consent', { option1: true }],
+      ['consent', { option1: false }],
+      ['track'],
+      ['track'],
+    ]);
+  });
+});

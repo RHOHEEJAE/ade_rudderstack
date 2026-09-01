@@ -1,0 +1,185 @@
+{
+  "name": "@rudderstack/analytics-js",
+  "version": "3.32.0",
+  "description": "RudderStack JavaScript SDK",
+  "main": "dist/npm/modern/cjs/index.cjs",
+  "module": "dist/npm/modern/esm/index.mjs",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/npm/index.d.mts",
+      "require": {
+        "types": "./dist/npm/index.d.cts",
+        "default": "./dist/npm/modern/cjs/index.cjs"
+      },
+      "import": {
+        "types": "./dist/npm/index.d.mts",
+        "default": "./dist/npm/modern/esm/index.mjs"
+      }
+    },
+    "./legacy": {
+      "types": "./dist/npm/index.d.mts",
+      "require": {
+        "types": "./dist/npm/index.d.cts",
+        "default": "./dist/npm/legacy/cjs/index.cjs"
+      },
+      "import": {
+        "types": "./dist/npm/index.d.mts",
+        "default": "./dist/npm/legacy/esm/index.mjs"
+      }
+    },
+    "./bundled": {
+      "types": "./dist/npm/index.d.mts",
+      "require": {
+        "types": "./dist/npm/index.d.cts",
+        "default": "./dist/npm/modern/bundled/cjs/index.cjs"
+      },
+      "import": {
+        "types": "./dist/npm/index.d.mts",
+        "default": "./dist/npm/modern/bundled/esm/index.mjs"
+      }
+    },
+    "./content-script": {
+      "types": "./dist/npm/index.d.mts",
+      "require": {
+        "types": "./dist/npm/index.d.cts",
+        "default": "./dist/npm/modern/content-script/cjs/index.cjs"
+      },
+      "import": {
+        "types": "./dist/npm/index.d.mts",
+        "default": "./dist/npm/modern/content-script/esm/index.mjs"
+      }
+    },
+    "./legacy-bundled": {
+      "types": "./dist/npm/index.d.mts",
+      "require": {
+        "types": "./dist/npm/index.d.cts",
+        "default": "./dist/npm/legacy/bundled/cjs/index.cjs"
+      },
+      "import": {
+        "types": "./dist/npm/index.d.mts",
+        "default": "./dist/npm/legacy/bundled/esm/index.mjs"
+      }
+    },
+    "./legacy-content-script": {
+      "types": "./dist/npm/index.d.mts",
+      "require": {
+        "types": "./dist/npm/index.d.cts",
+        "default": "./dist/npm/legacy/content-script/cjs/index.cjs"
+      },
+      "import": {
+        "types": "./dist/npm/index.d.mts",
+        "default": "./dist/npm/legacy/content-script/esm/index.mjs"
+      }
+    },
+    "./lite": {
+      "types": "./dist/npm/index.d.mts",
+      "require": {
+        "types": "./dist/npm/index.d.cts",
+        "default": "./dist/npm/modern/lite/cjs/index.cjs"
+      },
+      "import": {
+        "types": "./dist/npm/index.d.mts",
+        "default": "./dist/npm/modern/lite/esm/index.mjs"
+      }
+    },
+    "./legacy-lite": {
+      "types": "./dist/npm/index.d.mts",
+      "require": {
+        "types": "./dist/npm/index.d.cts",
+        "default": "./dist/npm/legacy/lite/cjs/index.cjs"
+      },
+      "import": {
+        "types": "./dist/npm/index.d.mts",
+        "default": "./dist/npm/legacy/lite/esm/index.mjs"
+      }
+    }
+  },
+  "types": "./dist/npm/index.d.mts",
+  "typesVersions": {
+    "*": {
+      "*": [
+        "./dist/npm/index.d.mts"
+      ]
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist/npm",
+    "LICENSE.md",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "keywords": [
+    "analytics",
+    "rudder"
+  ],
+  "author": "RudderStack",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rudderlabs/rudder-sdk-js.git",
+    "directory": "packages/analytics-js"
+  },
+  "bugs": {
+    "url": "https://github.com/rudderlabs/rudder-sdk-js/issues"
+  },
+  "homepage": "https://github.com/rudderlabs/rudder-sdk-js/blob/main/packages/analytics-js/README.md",
+  "scripts": {
+    "clean": "rimraf -rf ./dist && rimraf -rf ./node_modules/.cache && rimraf -rf ./reports",
+    "start": "rollup -c --watch --environment DEV_SERVER,PROD_DEBUG",
+    "start:modern": "BROWSERSLIST_ENV=modern npm run start",
+    "build": "npm run build:browser && npm run build:package",
+    "build:modern": "npm run build:browser:modern && npm run build:package:modern",
+    "build:browser": "rollup -c --environment VERSION:$npm_package_version,UGLIFY,PROD_DEBUG,ENV:prod",
+    "build:browser:dev": "rollup -c --environment PROD_DEBUG",
+    "build:browser:modern": "BROWSERSLIST_ENV=modern npm run build:browser",
+    "build:package": "npm run build:npm && npm run build:npm:bundled && npm run build:npm:content-script && npm run build:npm:lite",
+    "build:package:modern": "npm run build:npm:modern && npm run build:npm:bundled:modern && npm run build:npm:content-script:modern && npm run build:npm:lite:modern",
+    "build:npm": "rollup -c --environment VERSION:$npm_package_version,ENV:prod,MODULE_TYPE:npm",
+    "build:npm:modern": "BROWSERSLIST_ENV=modern npm run build:npm",
+    "build:npm:bundled": "BUNDLED_PLUGINS=all npm run build:npm",
+    "build:npm:bundled:modern": "BUNDLED_PLUGINS=all npm run build:npm:modern",
+    "build:npm:lite": "LITE_BUILD=true npm run build:npm",
+    "build:npm:lite:modern": "LITE_BUILD=true npm run build:npm:modern",
+    "build:npm:content-script": "BUNDLED_PLUGINS=all NO_EXTERNAL_HOST=true npm run build:npm",
+    "build:npm:content-script:modern": "BUNDLED_PLUGINS=all NO_EXTERNAL_HOST=true npm run build:npm:modern",
+    "test": "nx test --maxWorkers=50%",
+    "test:ci": "nx test --configuration=ci --runInBand --maxWorkers=1 --forceExit",
+    "check:lint": "nx lint",
+    "check:lint:ci": "nx lint --configuration=ci",
+    "check:size:build": "npm run build:browser && npm run build:browser:modern && npm run build:package && npm run build:package:modern",
+    "check:size": "npm run check:size:build && size-limit",
+    "check:size:json": "size-limit --json",
+    "check:circular": "madge --circular --extensions js,ts src || exit 0",
+    "check:support": "NODE_ENV=production npx browserslist --mobile-to-desktop",
+    "check:support:modern": "NODE_ENV=modern npx browserslist --mobile-to-desktop",
+    "check:duplicates": "jscpd src",
+    "check:security": "npm audit --audit-level=high",
+    "check:pub": "npx publint",
+    "package": "npm pack",
+    "release": "npm publish"
+  },
+  "devDependencies": {
+    "@bugsnag/js": "8.9.0"
+  },
+  "browserslist": {
+    "production": [
+      "> 0.1%",
+      "IE >= 11"
+    ],
+    "modern": [
+      "defaults and supports es6-module-dynamic-import and not dead"
+    ]
+  },
+  "dependencies": {
+    "@preact/signals-core": "1.14.4",
+    "@rudderstack/analytics-js-common": "*",
+    "@rudderstack/analytics-js-cookies": "*",
+    "@rudderstack/analytics-js-plugins": "*",
+    "ramda": "0.32.0",
+    "storejs": "2.1.1"
+  }
+}

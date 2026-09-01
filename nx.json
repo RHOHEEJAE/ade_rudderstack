@@ -1,0 +1,107 @@
+{
+  "workspaceLayout": {
+    "appsDir": "packages",
+    "libsDir": "packages"
+  },
+  "defaultBase": "main",
+  "release": {
+    "projects": ["*"],
+    "projectsRelationship": "independent",
+    "releaseTagPattern": "{projectName}@{version}",
+    "version": {
+      "conventionalCommits": true
+    },
+    "changelog": {
+      "projectChangelogs": {
+        "createRelease": "github"
+      }
+    }
+  },
+  "pluginsConfig": {
+    "@nx/js": {
+      "analyzeSourceFiles": true
+    }
+  },
+  "targetDefaults": {
+    "test*": {
+      "inputs": ["test"],
+      "cache": true
+    },
+    "*build*": {
+      "inputs": ["default"],
+      "cache": true
+    },
+    "check:size:json*": {
+      "inputs": ["default", "{projectRoot}/.size-limit.js", "{projectRoot}/.size-limit.mjs"],
+      "cache": true
+    },
+    "check:pub": {
+      "inputs": ["{projectRoot}/package.json"],
+      "cache": true
+    },
+    "check:circular": {
+      "inputs": ["default"],
+      "cache": true
+    },
+    "check:duplicates": {
+      "inputs": ["default", "{projectRoot}/.jscpd.json", "{workspaceRoot}/.jscpd.json"],
+      "cache": true
+    },
+    "check:lint*": {
+      "inputs": ["default", "{workspaceRoot}/eslint.config.mjs"],
+      "cache": true
+    }
+  },
+  "generators": {
+    "@nx/js:library": {
+      "buildable": true
+    }
+  },
+  "namedInputs": {
+    "sharedGlobals": [
+      "{workspaceRoot}/.nvmrc",
+      {
+        "runtime": "node --version"
+      },
+      "{workspaceRoot}/package.json",
+      "{workspaceRoot}/package-lock.json",
+      "{workspaceRoot}/nx.json",
+      "{workspaceRoot}/tsconfig.build.json",
+      "{workspaceRoot}/tsconfig.json",
+      "{workspaceRoot}/tsconfig.paths.json"
+    ],
+    "default": [
+      "sharedGlobals",
+      "{projectRoot}/src/**/*",
+      "{projectRoot}/package.json",
+      "{projectRoot}/project.json",
+      "{projectRoot}/rollup.config.mjs",
+      "{projectRoot}/babel.config.json",
+      "{projectRoot}/tsconfig.json",
+      "!{projectRoot}/src/**/*.(spec|test).(j|t)s?(x)",
+      "!{projectRoot}/**/*.md",
+      "!{projectRoot}/**/*.txt",
+      "{workspaceRoot}/types/**/*",
+      "{workspaceRoot}/babel.config.json"
+    ],
+    "test": [
+      "sharedGlobals",
+      "{projectRoot}/src/**/*",
+      "{projectRoot}/package.json",
+      "{projectRoot}/project.json",
+      "!{projectRoot}/**/*.md",
+      "!{projectRoot}/**/*.txt",
+      "{projectRoot}/src/**/*.(spec|test).(j|t)s?(x)",
+      "{projectRoot}/__tests__/**/*",
+      "{projectRoot}/__fixtures__/**/*",
+      "{projectRoot}/__mocks__/**/*",
+      "{projectRoot}/jest.config.mjs",
+      "{workspaceRoot}/jest/**/*",
+      "{workspaceRoot}/jest.preset.js",
+      "{projectRoot}/tsconfig.spec.json"
+    ]
+  },
+  "tui": {
+    "autoExit": true
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "devDependencies": {
+    "@babel/core": "7.29.0",
+    "@babel/preset-env": "7.29.5",
+    "@symfony/webpack-encore": "6.0.0",
+    "core-js": "3.49.0",
+    "regenerator-runtime": "0.14.1",
+    "webpack": "5.107.1",
+    "webpack-cli": "6.0.1",
+    "webpack-dev-server": "5.2.6",
+    "webpack-notifier": "1.15.0"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "dev-server": "encore dev-server",
+    "dev": "encore dev",
+    "watch": "encore dev --watch",
+    "build": "encore production --progress",
+    "clean": "rm -rf node_modules public/build",
+    "setup": "npm install",
+    "setup:ci": "npm ci",
+    "verify": "exit 0",
+    "clean:fresh": "npm run clean && rm -rf package-lock.json"
+  },
+  "name": "sample",
+  "version": "1.0.0",
+  "main": "webpack.config.js",
+  "directories": {
+    "test": "tests"
+  },
+  "keywords": [],
+  "author": "",
+  "description": "",
+  "dependencies": {
+    "@rudderstack/analytics-js": "*"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.build.json",
+  "compilerOptions": {
+    "target": "es5",
+    "declarationDir": "./dist/dts"
+  },
+  "include": [
+    "./package.json",
+    "./src/**/*",
+    "../../types/**/*",
+    "../analytics-js-common/src/**/*",
+    "../analytics-js-cookies/src/**/*",
+    "../analytics-js/src/**/*",
+    "../analytics-js-integrations/src/**/*"
+  ]
+}

@@ -1,0 +1,249 @@
+{
+  "source": {
+    "id": "2L5xLAqfW6NcqKGH1RXdRr4Gh2h",
+    "name": "JS-SDK",
+    "writeKey": "2L5xLF1bgviN1mRCrvfNf7bTHtd",
+    "config": {
+      "statsCollection": {
+        "errors": {
+          "enabled": true
+        },
+        "metrics": {
+          "enabled": false
+        }
+      }
+    },
+    "enabled": true,
+    "workspaceId": "2L5wIAEaAi3Tbrqq5kG4C06U01X",
+    "destinations": [
+      {
+        "id": "2L5yPlp2MHnx0DWaC2SafwM87dY",
+        "name": "Amplitude",
+        "enabled": true,
+        "config": {
+          "apiKey": "1b0a913109d21ccaa5e315d9ef925dc2",
+          "groupTypeTrait": "",
+          "groupValueTrait": "",
+          "trackAllPages": false,
+          "trackCategorizedPages": true,
+          "trackNamedPages": true,
+          "traitsToIncrement": [
+            {
+              "traits": ""
+            }
+          ],
+          "traitsToSetOnce": [
+            {
+              "traits": ""
+            }
+          ],
+          "traitsToAppend": [
+            {
+              "traits": ""
+            }
+          ],
+          "traitsToPrepend": [
+            {
+              "traits": ""
+            }
+          ],
+          "trackProductsOnce": false,
+          "trackRevenuePerProduct": false,
+          "preferAnonymousIdForDeviceId": false,
+          "versionName": "",
+          "blacklistedEvents": [
+            {
+              "eventName": ""
+            }
+          ],
+          "whitelistedEvents": [
+            {
+              "eventName": ""
+            }
+          ],
+          "oneTrustCookieCategories": [
+            {
+              "oneTrustCookieCategory": ""
+            }
+          ],
+          "eventFilteringOption": "disable",
+          "mapDeviceBrand": false,
+          "residencyServer": "standard",
+          "userProvidedPageEventString": "",
+          "useUserDefinedPageEventName": false,
+          "attribution": false,
+          "eventUploadThreshold": "1",
+          "eventUploadPeriodMillis": "0",
+          "trackNewCampaigns": true
+        },
+        "destinationDefinitionId": "1Q8kZdhlglB9q8gsD4xryMyWg1i",
+        "destinationDefinition": {
+          "name": "AM",
+          "displayName": "Amplitude"
+        },
+        "updatedAt": "2023-10-03T12:10:01.855Z",
+        "shouldApplyDeviceModeTransformation": false,
+        "propagateEventsUntransformedOnError": false
+      },
+      {
+        "id": "2SgVD0o1zCgEukNjJ4HgvRjWYti",
+        "name": "GA",
+        "enabled": true,
+        "config": {
+          "trackingID": "UA-123456789-1",
+          "doubleClick": false,
+          "enhancedLinkAttribution": false,
+          "includeSearch": false,
+          "trackCategorizedPages": true,
+          "trackNamedPages": true,
+          "useRichEventNames": false,
+          "sampleRate": "100",
+          "siteSpeedSampleRate": "1",
+          "resetCustomDimensionsOnPage": [],
+          "setAllMappedProps": true,
+          "anonymizeIp": false,
+          "domain": "auto",
+          "enhancedEcommerce": false,
+          "nonInteraction": false,
+          "optimize": "",
+          "sendUserId": false,
+          "useGoogleAmpClientId": false,
+          "namedTracker": false,
+          "blacklistedEvents": [],
+          "whitelistedEvents": [],
+          "oneTrustCookieCategories": [],
+          "eventFilteringOption": "disable",
+          "ketchConsentPurposes": []
+        },
+        "destinationDefinitionId": "1Q8kZOyJE87ECoQ8kc26TOpgpXl",
+        "destinationDefinition": {
+          "name": "GA",
+          "displayName": "Google Analytics"
+        },
+        "updatedAt": "2023-07-17T04:28:07.671Z",
+        "shouldApplyDeviceModeTransformation": false,
+        "propagateEventsUntransformedOnError": false
+      },
+      {
+        "id": "2Xmqg1aW0cRNyOMNxqvyqH762Ex",
+        "name": "FB pixel dev",
+        "enabled": false,
+        "config": {
+          "pixelId": "3626159724376295",
+          "valueFieldIdentifier": "properties.price",
+          "blacklistedEvents": [
+            {
+              "eventName": ""
+            }
+          ],
+          "whitelistedEvents": [
+            {
+              "eventName": ""
+            }
+          ],
+          "oneTrustCookieCategories": [
+            {
+              "oneTrustCookieCategory": ""
+            }
+          ],
+          "eventFilteringOption": "disable",
+          "useUpdatedMapping": false,
+          "ketchConsentPurposes": [
+            {
+              "purpose": ""
+            }
+          ]
+        },
+        "destinationDefinitionId": "1aHtCsG9wxv4i3a6gtDdbSxYg8m",
+        "destinationDefinition": {
+          "name": "FACEBOOK_PIXEL",
+          "displayName": "Facebook Pixel"
+        },
+        "updatedAt": "2023-11-06T04:27:06.179Z",
+        "shouldApplyDeviceModeTransformation": false,
+        "propagateEventsUntransformedOnError": false
+      },
+      {
+        "id": "2Xmr8aWnqjvOZANQVTUI3S4AUUw",
+        "name": "Braze js",
+        "enabled": false,
+        "config": {
+          "appKey": "f2c7c97a-48d1-11ea-8e07-faffc22c7c7f",
+          "dataCenter": "US-03",
+          "trackAnonymousUser": false,
+          "enableSubscriptionGroupInGroupCall": false,
+          "enableBrazeLogging": false,
+          "enableNestedArrayOperations": false,
+          "supportDedup": false,
+          "blacklistedEvents": [],
+          "whitelistedEvents": [],
+          "oneTrustCookieCategories": [
+            {
+              "oneTrustCookieCategory": ""
+            }
+          ],
+          "eventFilteringOption": "disable",
+          "connectionMode": "device"
+        },
+        "destinationDefinitionId": "1eM0CHgYSVDHntxZDwNoDmzuUQi",
+        "destinationDefinition": {
+          "name": "BRAZE",
+          "displayName": "Braze"
+        },
+        "updatedAt": "2023-11-06T04:29:14.700Z",
+        "shouldApplyDeviceModeTransformation": false,
+        "propagateEventsUntransformedOnError": false
+      },
+      {
+        "id": "2XmrPUYit0LsoG1S5tozSfI5XkM",
+        "name": "Google Ads dev",
+        "enabled": true,
+        "config": {
+          "conversionID": "AW-11099263080",
+          "eventMappingFromConfig": [
+            {
+              "from": "",
+              "to": ""
+            }
+          ],
+          "defaultPageConversion": "",
+          "sendPageView": true,
+          "conversionLinker": true,
+          "disableAdPersonalization": false,
+          "blacklistedEvents": [],
+          "whitelistedEvents": [],
+          "oneTrustCookieCategories": [],
+          "eventFilteringOption": "disable",
+          "dynamicRemarketing": {},
+          "trackConversions": true,
+          "enableConversionEventsFiltering": false,
+          "trackDynamicRemarketing": false,
+          "allowEnhancedConversions": false,
+          "enableConversionLabel": false
+        },
+        "destinationDefinitionId": "1WKMf5COr1KBI6PmVxuc9zaR7DV",
+        "destinationDefinition": {
+          "name": "GOOGLEADS",
+          "displayName": "Google Ads"
+        },
+        "updatedAt": "2023-11-06T04:31:11.813Z",
+        "shouldApplyDeviceModeTransformation": false,
+        "propagateEventsUntransformedOnError": false
+      }
+    ],
+    "updatedAt": "2023-01-31T14:18:06.412Z"
+  },
+  "updatedAt": "2024-01-09T11:18:54.378Z",
+  "consentManagementMetadata": {
+    "providers": [
+      {
+        "provider": "oneTrust",
+        "resolutionStrategy": "and"
+      },
+      {
+        "provider": "ketch",
+        "resolutionStrategy": "or"
+      }
+    ]
+  }
+}

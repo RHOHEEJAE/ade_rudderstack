@@ -1,0 +1,68 @@
+{
+  "name": "@rudderstack/analytics-js-common",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/analytics-js-common/src",
+  "projectType": "library",
+  "tags": [
+    "type:lib",
+    "scope:common"
+  ],
+  "targets": {
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": [
+        "{workspaceRoot}/coverage/{projectRoot}"
+      ],
+      "options": {
+        "jestConfig": "packages/analytics-js-common/jest.config.mjs",
+        "passWithNoTests": true,
+        "codeCoverage": true,
+        "watchAll": false,
+        "forceExit": true
+      },
+      "configurations": {
+        "ci": {
+          "ci": true,
+          "codeCoverage": true
+        }
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": [
+        "{options.outputFile}"
+      ],
+      "options": {
+        "hasTypeAwareRules": true,
+        "lintFilePatterns": [
+          "packages/analytics-js-common/src/**/*.{ts,js}",
+          "packages/analytics-js-common/{package,project}.json"
+        ]
+      },
+      "configurations": {
+        "ci": {
+          "force": true,
+          "outputFile": "packages/analytics-js-common/reports/eslint.json",
+          "format": "json"
+        }
+      }
+    },
+    "version": {
+      "executor": "@jscutlery/semver:version",
+      "options": {
+        "preset": "conventionalcommits",
+        "tagPrefix": "{projectName}@",
+        "trackDeps": true
+      }
+    },
+    "github": {
+      "executor": "@jscutlery/semver:github",
+      "options": {
+        "tag": "@rudderstack/analytics-js-common@3.29.0",
+        "title": "@rudderstack/analytics-js-common@3.29.0",
+        "discussion-category": "@rudderstack/analytics-js-common@3.29.0",
+        "notesFile": "./packages/analytics-js-common/CHANGELOG_LATEST.md"
+      }
+    }
+  }
+}

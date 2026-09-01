@@ -1,0 +1,2706 @@
+/* eslint-disable class-methods-use-this */
+// eslint-disable-next-line max-classes-per-file
+import type { Destination } from '@rudderstack/analytics-js-common/types/Destination';
+import type {
+  SourceConfigurationOverride,
+  SourceConfigurationOverrideDestination,
+} from '@rudderstack/analytics-js-common/types/LoadOptions';
+import { defaultErrorHandler } from '@rudderstack/analytics-js-common/__mocks__/ErrorHandler';
+import {
+  wait,
+  isDestinationReady,
+  createIntegrationInstance,
+  isDestinationSDKMounted,
+  applySourceConfigurationOverrides,
+  applyOverrideToDestination,
+  filterDisabledDestinations,
+  getCumulativeIntegrationsConfig,
+  initializeDestination,
+  validateCustomIntegration,
+  addIntegrationToDestination,
+} from '../../src/deviceModeDestinations/utils';
+import { resetState, state } from '../../__mocks__/state';
+import { defaultLogger } from '@rudderstack/analytics-js-common/__mocks__/Logger';
+
+// Mock the UUID generator
+jest.mock('@rudderstack/analytics-js-common/utilities/uuId', () => ({
+  generateUUID: jest.fn(),
+}));
+
+describe('deviceModeDestinations utils', () => {
+  describe('wait', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(0);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('should return a promise that resolves after the specified time', async () => {
+      const time = 1000;
+      const startTime = Date.now();
+
+      const waitPromise = wait(time);
+
+      // Advance the timers by the specified time
+      jest.runAllTimers();
+
+      await waitPromise;
+
+      const endTime = Date.now();
+
+      expect(endTime - startTime).toBeGreaterThanOrEqual(time);
+    });
+
+    it('should return a promise that resolves immediately even if the time is 0', async () => {
+      const time = 0;
+      const startTime = Date.now();
+
+      const waitPromise = wait(time);
+
+      // Advance the timers by the specified time
+      jest.runAllTimers();
+
+      await waitPromise;
+
+      const endTime = Date.now();
+
+      expect(endTime - startTime).toBeGreaterThanOrEqual(time);
+    });
+
+    it('should return a promise that resolves immediately even if the time is negative', async () => {
+      const time = -1000;
+      const startTime = Date.now();
+
+      const waitPromise = wait(time);
+
+      // Advance the timers by the next tick
+      jest.runAllTimers();
+
+      await waitPromise;
+
+      const endTime = Date.now();
+
+      expect(endTime - startTime).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should return a promise that resolves immediately even if the time is not a number', async () => {
+      const time = '2 seconds';
+      const startTime = Date.now();
+
+      // @ts-expect-error intentionally passing a string
+      const waitPromise = wait(time);
+
+      // Advance the timers by the next tick
+      jest.runAllTimers();
+
+      await waitPromise;
+
+      const endTime = Date.now();
+
+      expect(endTime - startTime).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('isDestinationReady', () => {
+    let isReadyResponse = false;
+    const destination = {
+      integration: {
+        isReady: () => isReadyResponse,
+      },
+      userFriendlyId: 'GA4___1234567890',
+      id: 'GA4___1234567890',
+      displayName: 'Google Analytics 4 (GA4)',
+      enabled: true,
+      shouldApplyDeviceModeTransformation: true,
+      propagateEventsUntransformedOnError: false,
+      config: {
+        blacklistedEvents: [],
+        whitelistedEvents: [],
+        eventFilteringOption: 'disable',
+        consentManagement: [],
+        connectionMode: 'device',
+      },
+    };
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(0);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+      isReadyResponse = false;
+    });
+
+    it('should return a promise that gets resolved when the destination is ready immediately', async () => {
+      isReadyResponse = true;
+
+      const isReadyPromise = isDestinationReady(destination as Destination);
+
+      // Fast-forward the timers
+      jest.runAllTimers();
+
+      await expect(isReadyPromise).resolves.toEqual(true);
+    });
+
+    it('should return a promise that gets resolved when the destination is ready after some time', async () => {
+      setTimeout(() => {
+        isReadyResponse = true;
+      }, 1000);
+
+      const isReadyPromise = isDestinationReady(destination as Destination);
+
+      // Fast-forward the timers
+      jest.advanceTimersByTime(1000);
+
+      await expect(isReadyPromise).resolves.toEqual(true);
+    });
+
+    it('should return a promise that gets rejected when the destination is not ready after the timeout', async () => {
+      const isReadyPromise = isDestinationReady(destination as Destination);
+
+      // Fast-forward the timers to cause a timeout
+      jest.advanceTimersByTime(11000);
+
+      await expect(isReadyPromise).rejects.toThrow(new Error(`A timeout of 11000 ms occurred`));
+    });
+  });
+
+  describe('createIntegrationInstance', () => {
+    // put destination SDK code on the window object
+    const destSDKIdentifier = 'GA4_RS';
+    const sdkTypeName = 'GA4';
+
+    beforeAll(() => {
+      (window as any)[destSDKIdentifier] = {
+        [sdkTypeName]: class {
+          config: any;
+          analytics: any;
+          constructor(config: any, analytics: any) {
+            this.config = config;
+            this.analytics = analytics;
+          }
+        },
+      };
+    });
+
+    afterAll(() => {
+      delete (window as any).GA4_RS;
+    });
+
+    it('should return an instance of the destination', () => {
+      state.lifecycle.writeKey.value = '12345678910'; // write key 2
+
+      const destination = {
+        config: {
+          apiKey: '1234',
+        },
+        areTransformationsConnected: false,
+        id: 'GA4___5678',
+      } as unknown as Destination;
+
+      const destinationInstance = createIntegrationInstance(
+        destSDKIdentifier,
+        sdkTypeName,
+        destination,
+        state,
+      );
+
+      expect(destinationInstance).toBeInstanceOf((window as any)[destSDKIdentifier][sdkTypeName]);
+      expect(destinationInstance.config).toEqual(destination.config);
+      expect(destinationInstance.analytics).toEqual({
+        loadIntegration: true,
+        loadOnlyIntegrations: {},
+        logLevel: 'ERROR',
+        alias: expect.any(Function),
+        group: expect.any(Function),
+        identify: expect.any(Function),
+        page: expect.any(Function),
+        track: expect.any(Function),
+        getAnonymousId: expect.any(Function),
+        getGroupId: expect.any(Function),
+        getUserId: expect.any(Function),
+        getUserTraits: expect.any(Function),
+        getGroupTraits: expect.any(Function),
+        getSessionId: expect.any(Function),
+      });
+
+      // Make sure all the calls are forwarded to the correct instance
+      destinationInstance.analytics?.page(
+        'test-category',
+        'test-name',
+        { test: 'test' },
+        { test: 'test' },
+        () => {},
+      );
+      expect(state.lifecycle.safeAnalyticsInstance.value?.page).toHaveBeenCalledTimes(1);
+      expect(state.lifecycle.safeAnalyticsInstance.value?.page).toHaveBeenCalledWith(
+        'test-category',
+        'test-name',
+        { test: 'test' },
+        { test: 'test' },
+        expect.any(Function),
+      );
+
+      destinationInstance.analytics?.track(
+        'test-event',
+        { test: 'test' },
+        { test: 'test' },
+        () => {},
+      );
+      expect(state.lifecycle.safeAnalyticsInstance.value?.track).toHaveBeenCalledTimes(1);
+      expect(state.lifecycle.safeAnalyticsInstance.value?.track).toHaveBeenCalledWith(
+        'test-event',
+        { test: 'test' },
+        { test: 'test' },
+        expect.any(Function),
+      );
+
+      destinationInstance.analytics?.identify(
+        'test-user-id',
+        { test: 'test' },
+        { test: 'test' },
+        () => {},
+      );
+      expect(state.lifecycle.safeAnalyticsInstance.value?.identify).toHaveBeenCalledTimes(1);
+      expect(state.lifecycle.safeAnalyticsInstance.value?.identify).toHaveBeenCalledWith(
+        'test-user-id',
+        { test: 'test' },
+        { test: 'test' },
+        expect.any(Function),
+      );
+
+      destinationInstance.analytics?.group(
+        'test-group-id',
+        { test: 'test' },
+        { test: 'test' },
+        () => {},
+      );
+      expect(state.lifecycle.safeAnalyticsInstance.value?.group).toHaveBeenCalledTimes(1);
+      expect(state.lifecycle.safeAnalyticsInstance.value?.group).toHaveBeenCalledWith(
+        'test-group-id',
+        { test: 'test' },
+        { test: 'test' },
+        expect.any(Function),
+      );
+
+      destinationInstance.analytics?.alias('test-alias-id', 'old-id', { test: 'test' }, () => {});
+      expect(state.lifecycle.safeAnalyticsInstance.value?.alias).toHaveBeenCalledTimes(1);
+      expect(state.lifecycle.safeAnalyticsInstance.value?.alias).toHaveBeenCalledWith(
+        'test-alias-id',
+        'old-id',
+        { test: 'test' },
+        expect.any(Function),
+      );
+
+      destinationInstance.analytics?.getUserId();
+      expect(state.lifecycle.safeAnalyticsInstance.value?.getUserId).toHaveBeenCalledTimes(1);
+
+      destinationInstance.analytics?.getUserTraits();
+      expect(state.lifecycle.safeAnalyticsInstance.value?.getUserTraits).toHaveBeenCalledTimes(1);
+
+      destinationInstance.analytics?.getGroupId();
+      expect(state.lifecycle.safeAnalyticsInstance.value?.getGroupId).toHaveBeenCalledTimes(1);
+
+      destinationInstance.analytics?.getGroupTraits();
+      expect(state.lifecycle.safeAnalyticsInstance.value?.getGroupTraits).toHaveBeenCalledTimes(1);
+
+      destinationInstance.analytics?.getSessionId();
+      expect(state.lifecycle.safeAnalyticsInstance.value?.getSessionId).toHaveBeenCalledTimes(1);
+
+      resetState();
+    });
+  });
+
+  describe('isDestinationSDKMounted', () => {
+    const destSDKIdentifier = 'GA4_RS';
+    const sdkTypeName = 'GA4';
+
+    beforeEach(() => {});
+
+    afterEach(() => {
+      delete (window as any)[destSDKIdentifier];
+    });
+
+    it('should return false if the destination SDK is not evaluated', () => {
+      expect(isDestinationSDKMounted(destSDKIdentifier, sdkTypeName)).toEqual(false);
+    });
+
+    it('should return false if the destination SDK is mounted but it is not a constructable type', () => {
+      (window as any)[destSDKIdentifier] = {
+        [sdkTypeName]: 'not a constructable type',
+      };
+
+      expect(isDestinationSDKMounted(destSDKIdentifier, sdkTypeName)).toEqual(false);
+    });
+
+    it('should return true if the destination SDK is a constructable type', () => {
+      (window as any)[destSDKIdentifier] = {
+        [sdkTypeName]: class {
+          // eslint-disable-next-line @typescript-eslint/no-useless-constructor
+          constructor() {}
+        },
+      };
+
+      expect(isDestinationSDKMounted(destSDKIdentifier, sdkTypeName)).toEqual(true);
+    });
+
+    it('should return false when SDK identifier exists but no SDK type', () => {
+      (window as any)[destSDKIdentifier] = {};
+
+      const result = isDestinationSDKMounted(destSDKIdentifier, sdkTypeName);
+      expect(result).toBe(false);
+    });
+
+    it('should return false when SDK type exists but no prototype', () => {
+      (window as any)[destSDKIdentifier] = {
+        [sdkTypeName]: {},
+      };
+
+      const result = isDestinationSDKMounted(destSDKIdentifier, sdkTypeName);
+      expect(result).toBe(false);
+    });
+
+    it('should work with logger parameter', () => {
+      const result = isDestinationSDKMounted(destSDKIdentifier, sdkTypeName, defaultLogger);
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('applySourceConfigurationOverrides', () => {
+    const mockDestinations: Destination[] = [
+      {
+        id: 'dest1',
+        displayName: 'Destination 1',
+        userFriendlyId: 'dest1_friendly',
+        enabled: true,
+        shouldApplyDeviceModeTransformation: true,
+        propagateEventsUntransformedOnError: false,
+        config: {
+          apiKey: 'key1',
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable' as const,
+          consentManagement: [],
+          connectionMode: 'device' as const,
+        },
+      },
+      {
+        id: 'dest2',
+        displayName: 'Destination 2',
+        userFriendlyId: 'dest2_friendly',
+        enabled: false,
+        shouldApplyDeviceModeTransformation: false,
+        propagateEventsUntransformedOnError: true,
+        config: {
+          apiKey: 'key2',
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable' as const,
+          consentManagement: [],
+          connectionMode: 'device' as const,
+        },
+      },
+      {
+        id: 'dest3',
+        displayName: 'Destination 3',
+        userFriendlyId: 'dest3_friendly',
+        enabled: true,
+        shouldApplyDeviceModeTransformation: true,
+        propagateEventsUntransformedOnError: false,
+        config: {
+          apiKey: 'key3',
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable' as const,
+          consentManagement: [],
+          connectionMode: 'device' as const,
+        },
+      },
+    ];
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should return original enabled destinations when no override is provided', () => {
+      const result = applySourceConfigurationOverrides(mockDestinations, { destinations: [] });
+      expect(result).toEqual([mockDestinations[0], mockDestinations[2]]);
+    });
+
+    it('should return original enabled destinations when override is undefined', () => {
+      const result = applySourceConfigurationOverrides(mockDestinations, undefined as any);
+      expect(result).toEqual([mockDestinations[0], mockDestinations[2]]);
+    });
+
+    it('should return original enabled destinations when override destinations is undefined', () => {
+      const result = applySourceConfigurationOverrides(mockDestinations, {} as any);
+      expect(result).toEqual([mockDestinations[0], mockDestinations[2]]);
+    });
+
+    it('should apply enabled status override correctly', () => {
+      const override = {
+        destinations: [
+          { id: 'dest1', enabled: false },
+          { id: 'dest2', enabled: true },
+        ],
+      };
+
+      const result = applySourceConfigurationOverrides(mockDestinations, override);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]?.enabled).toBe(true);
+      expect(result[0]?.overridden).toBe(true);
+      expect(result[1]?.enabled).toBe(true);
+      expect(result[1]?.overridden).toBeUndefined();
+    });
+
+    it('should not override when enabled status matches existing value', () => {
+      const override = {
+        destinations: [
+          { id: 'dest1', enabled: true }, // Same as existing
+          { id: 'dest2', enabled: false }, // Same as existing
+        ],
+      };
+
+      const result = applySourceConfigurationOverrides(mockDestinations, override);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toBe(mockDestinations[0]); // Same reference
+      expect(result[0]?.enabled).toBe(true);
+      expect(result[0]?.overridden).toBeUndefined();
+      expect(result[1]).toBe(mockDestinations[2]); // Same reference
+    });
+
+    it('should log warning for unmatched destination IDs', () => {
+      const override = {
+        destinations: [
+          { id: 'dest1', enabled: false },
+          { id: 'nonexistent1', enabled: true },
+          { id: 'nonexistent2', enabled: false },
+        ],
+      };
+
+      applySourceConfigurationOverrides(mockDestinations, override, defaultLogger);
+
+      expect(defaultLogger.warn).toHaveBeenCalledWith(
+        'DeviceModeDestinationsPlugin:: Source configuration override - Unable to identify the destinations with the following IDs: "nonexistent1, nonexistent2"',
+      );
+    });
+
+    it('should not mutate original destinations', () => {
+      const originalDest1 = { ...mockDestinations[0]! };
+      const override = {
+        destinations: [{ id: 'dest1', enabled: false }],
+      };
+
+      applySourceConfigurationOverrides(mockDestinations, override);
+
+      expect(mockDestinations[0]!.enabled).toBe(originalDest1.enabled);
+      expect(mockDestinations[0]!.overridden).toBeUndefined();
+    });
+
+    it('should handle undefined enabled property in override', () => {
+      const override = {
+        destinations: [{ id: 'dest1', config: { newProperty: 'value' } }],
+      };
+
+      const result = applySourceConfigurationOverrides(mockDestinations, override);
+
+      expect(result[0]).not.toBe(mockDestinations[0]); // Different reference due to config override
+      expect(result[0]?.enabled).toBe(true); // Original value preserved
+      expect(result[0]?.overridden).toBe(true); // Marked as overridden due to config changes
+      expect((result[0]?.config as any).newProperty).toBe('value'); // Config override applied
+    });
+
+    it('should apply config override when destination is enabled via override', () => {
+      const override = {
+        destinations: [{ id: 'dest2', enabled: true, config: { newProperty: 'value' } }], // dest2 enabled via override
+      };
+
+      const result = applySourceConfigurationOverrides(mockDestinations, override);
+
+      expect(result[1]).not.toBe(mockDestinations[1]); // Different reference due to override
+      expect(result[1]?.enabled).toBe(true); // Enabled via override
+      expect(result[1]?.overridden).toBe(true); // Marked as overridden
+      expect((result[1]?.config as any).newProperty).toBe('value'); // Config override applied
+    });
+
+    it('should handle non-boolean enabled values in override', () => {
+      const override = {
+        destinations: [
+          { id: 'dest1', enabled: 'true' as any }, // Invalid type
+          { id: 'dest2', enabled: 1 as any }, // Invalid type
+        ],
+      };
+
+      const result = applySourceConfigurationOverrides(mockDestinations, override);
+
+      expect(result[0]).toBe(mockDestinations[0]); // Same reference since no valid changes
+      expect(result[0]?.enabled).toBe(true); // Original value preserved
+      expect(result[0]?.overridden).toBeUndefined();
+      expect(result[1]).toBe(mockDestinations[2]); // Same reference since no valid changes
+      expect(result[1]?.enabled).toBe(true); // Original value preserved
+      expect(result[1]?.overridden).toBeUndefined();
+    });
+
+    it('should handle empty destinations array in override', () => {
+      const override = {
+        destinations: [],
+      };
+
+      const result = applySourceConfigurationOverrides(mockDestinations, override);
+
+      expect(result).toEqual([mockDestinations[0], mockDestinations[2]]);
+    });
+
+    //  --- Cloning scenario ---
+    it('should clone destination when multiple overrides exist for the same destination id', () => {
+      const override = {
+        destinations: [
+          { id: 'dest1', enabled: true, config: { apiKey: 'clone1' } },
+          { id: 'dest1', enabled: true, config: { apiKey: 'clone2' } },
+        ],
+      };
+
+      const result = applySourceConfigurationOverrides(mockDestinations, override);
+
+      // Should have 3 destinations: 2 clones for dest1, dest3
+      expect(result).toHaveLength(3);
+
+      // Both clones should be marked as cloned and 2nd clones config should be updated
+      const dest1Clones = result.filter(d => d.id.startsWith('dest1'));
+      expect(dest1Clones).toHaveLength(2);
+      expect(dest1Clones[0]?.cloned).toBe(true);
+      expect(dest1Clones[1]?.cloned).toBe(true);
+      expect(dest1Clones[0]?.config.apiKey).toBe('clone1');
+      expect(dest1Clones[1]?.config.apiKey).toBe('clone2');
+      // Enabled status should match override
+      expect(dest1Clones[0]?.enabled).toBe(true);
+      expect(dest1Clones[1]?.enabled).toBe(true);
+      // cloned destination should have originalId and originalId should be the original destination id
+      expect(dest1Clones[0]?.originalId).toBe('dest1');
+      expect(dest1Clones[1]?.originalId).toBe('dest1');
+
+      // dest2 and dest3 should be unchanged
+      expect(result.find(d => d.id === 'dest3')).toBe(mockDestinations[2]);
+    });
+
+    it('should clone destination and assign unique ids/userFriendlyIds for each clone', () => {
+      const override = {
+        destinations: [
+          { id: 'dest2', enabled: true, config: { apiKey: 'cloneA' } },
+          { id: 'dest2', enabled: false, config: { apiKey: 'cloneB' } },
+        ],
+      };
+
+      const result = applySourceConfigurationOverrides(mockDestinations, override);
+
+      // Should have 3 destinations: 1 clones for dest2, dest1, dest3
+      expect(result).toHaveLength(3);
+
+      const dest2Clones = result.filter(d => d.id.startsWith('dest2'));
+      expect(dest2Clones).toHaveLength(1);
+
+      // Each clone should have a unique id and userFriendlyId
+      expect(dest2Clones[0]).toBeDefined();
+      expect(dest2Clones[0]?.id).toBe('dest2_1');
+      expect(dest2Clones[0]?.userFriendlyId).toBe('dest2_friendly_1');
+      expect(dest2Clones[0]?.originalId).toBe('dest2');
+
+      // Config and enabled status should match each override
+      expect(dest2Clones[0]?.config.apiKey).toBe('cloneA');
+      expect([true, false]).toContain(dest2Clones[0]?.enabled);
+
+      // dest1 and dest3 should be unchanged
+      expect(result.find(d => d.id === 'dest1')).toBe(mockDestinations[0]);
+      expect(result.find(d => d.id === 'dest3')).toBe(mockDestinations[2]);
+    });
+
+    it('should clone destination for each override and preserve other properties', () => {
+      const override = {
+        destinations: [
+          { id: 'dest3', enabled: true, config: { apiKey: 'A' } },
+          { id: 'dest3', enabled: true, config: { apiKey: 'B', extra: 123 } },
+        ],
+      };
+
+      const result = applySourceConfigurationOverrides(mockDestinations, override);
+
+      // Should have 3 destinations: 2 clones for dest3, dest1
+      expect(result).toHaveLength(3);
+
+      const dest3Clones = result.filter(d => d.id.startsWith('dest3'));
+      expect(dest3Clones).toHaveLength(2);
+
+      // Properties from original should be preserved
+      dest3Clones.forEach(clone => {
+        expect(clone.displayName).toBe('Destination 3');
+        expect(clone.shouldApplyDeviceModeTransformation).toBe(true);
+        expect(clone.propagateEventsUntransformedOnError).toBe(false);
+        expect(clone.cloned).toBe(true);
+      });
+
+      // Config and enabled status should match each override
+      expect(dest3Clones[0]?.config?.apiKey).toBe('A');
+      expect(dest3Clones[1]?.config?.apiKey).toBe('B');
+      expect(dest3Clones[1]?.config?.extra).toBe(123);
+      expect(dest3Clones[0]?.enabled).toBe(true);
+      expect(dest3Clones[1]?.enabled).toBe(true);
+      // cloned destination should have originalId and originalId should be the original destination id
+      expect(dest3Clones[0]?.originalId).toBe('dest3');
+      expect(dest3Clones[1]?.originalId).toBe('dest3');
+      // inherit other config properties
+      expect(dest3Clones[0]?.config?.eventFilteringOption).toBe('disable');
+      expect(dest3Clones[1]?.config?.eventFilteringOption).toBe('disable');
+      expect(dest3Clones[0]?.config?.blacklistedEvents).toEqual([]);
+      expect(dest3Clones[1]?.config?.blacklistedEvents).toEqual([]);
+      expect(dest3Clones[0]?.config?.whitelistedEvents).toEqual([]);
+      expect(dest3Clones[1]?.config?.whitelistedEvents).toEqual([]);
+
+      // dest1 should be unchanged
+      expect(result.find(d => d.id === 'dest1')).toBe(mockDestinations[0]);
+    });
+
+    //   ---- Filter destination ----
+    it('should filter out destinations that are not enabled', () => {
+      const override = {
+        destinations: [
+          { id: 'dest1', enabled: true },
+          { id: 'dest2', enabled: false }, // This should be filtered out
+          { id: 'dest3', enabled: true },
+        ],
+      };
+
+      const result = applySourceConfigurationOverrides(mockDestinations, override);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]?.id).toBe('dest1');
+      expect(result[1]?.id).toBe('dest3');
+    });
+
+    it('should filter out destinations that are not enabled even if they have config overrides', () => {
+      const override = {
+        destinations: [
+          { id: 'dest2', enabled: true },
+          { id: 'dest1', enabled: false, config: { newProperty: 'value' } }, // This should be filtered out
+          { id: 'dest3', enabled: true },
+        ],
+      };
+
+      const result = applySourceConfigurationOverrides(mockDestinations, override);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]?.id).toBe('dest2');
+      expect(result[1]?.id).toBe('dest3');
+    });
+
+    it('should not filter out destinations that are enabled', () => {
+      const override = {
+        destinations: [
+          { id: 'dest1', enabled: true },
+          { id: 'dest2', enabled: true }, // This should not be filtered out
+          { id: 'dest3', enabled: true },
+        ],
+      };
+
+      const result = applySourceConfigurationOverrides(mockDestinations, override);
+
+      expect(result).toHaveLength(3);
+      expect(result[0]?.id).toBe('dest1');
+      expect(result[1]?.id).toBe('dest2');
+      expect(result[2]?.id).toBe('dest3');
+    });
+
+    it('should filter out original destinations that are not enabled when override destination is provided', () => {
+      const override = {
+        destinations: [
+          { id: 'dest1', enabled: true, config: { newProperty: 'value' } }, // This should be included
+        ],
+      };
+
+      const result = applySourceConfigurationOverrides(mockDestinations, override);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]?.id).toBe('dest1');
+      expect(result[1]?.id).toBe('dest3');
+    });
+
+    it('should filter out original destinations that are not enabled when override destination is empty', () => {
+      const override = {
+        destinations: [],
+      };
+
+      const result = applySourceConfigurationOverrides(mockDestinations, override);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]?.id).toBe('dest1');
+      expect(result[1]?.id).toBe('dest3');
+    });
+
+    it('should apply multiple overrides to different destinations', () => {
+      const override: SourceConfigurationOverride = {
+        destinations: [
+          { id: 'dest1', enabled: false },
+          { id: 'dest2', enabled: true },
+        ],
+      };
+
+      const result = applySourceConfigurationOverrides(mockDestinations, override);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]!.enabled).toBe(true);
+      expect(result[0]!.overridden).toBe(true);
+      expect(result[1]!.enabled).toBe(true);
+      expect(result[1]!.overridden).toBeUndefined();
+    });
+
+    it('should not log warning when all destination IDs match', () => {
+      const mockWarn = jest.fn();
+      const mockLogger = { warn: mockWarn } as any;
+
+      const override: SourceConfigurationOverride = {
+        destinations: [
+          { id: 'dest1', enabled: false },
+          { id: 'dest2', enabled: true },
+        ],
+      };
+
+      applySourceConfigurationOverrides(mockDestinations, override, mockLogger);
+
+      expect(mockWarn).not.toHaveBeenCalled();
+    });
+
+    it('should work without logger parameter', () => {
+      const override: SourceConfigurationOverride = {
+        destinations: [{ id: 'nonexistent', enabled: true }],
+      };
+
+      expect(() => {
+        applySourceConfigurationOverrides(mockDestinations, override);
+      }).not.toThrow();
+    });
+
+    it('should handle empty destinations array', () => {
+      const override: SourceConfigurationOverride = {
+        destinations: [{ id: 'dest1', enabled: false }],
+      };
+
+      const result = applySourceConfigurationOverrides([], override);
+      expect(result).toEqual([]);
+    });
+
+    it('should handle complex override scenarios', () => {
+      const override: SourceConfigurationOverride = {
+        destinations: [
+          { id: 'dest1', enabled: false },
+          { id: 'nonexistent', enabled: true },
+        ],
+      };
+
+      const mockLogger = { warn: jest.fn() } as any;
+      const result = applySourceConfigurationOverrides(mockDestinations, override, mockLogger);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual(mockDestinations[2]); // unchanged
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('nonexistent'));
+    });
+  });
+
+  describe('applyOverrideToDestination', () => {
+    const mockDestination: Destination = {
+      id: 'dest1',
+      displayName: 'Destination 1',
+      userFriendlyId: 'dest1_friendly',
+      enabled: true,
+      shouldApplyDeviceModeTransformation: true,
+      propagateEventsUntransformedOnError: false,
+      config: {
+        apiKey: 'key1',
+        blacklistedEvents: [],
+        whitelistedEvents: [],
+        eventFilteringOption: 'disable' as const,
+        consentManagement: [],
+        connectionMode: 'device' as const,
+      },
+    };
+
+    it('should return original destination when enabled status matches and no config override', () => {
+      const override = { id: 'dest1', enabled: true };
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result).toBe(mockDestination); // Same reference
+      expect(result.overridden).toBeUndefined();
+    });
+
+    it('should clone and override enabled status when different', () => {
+      const override = { id: 'dest1', enabled: false };
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result).not.toBe(mockDestination); // Different reference
+      expect(result.enabled).toBe(false);
+      expect(result.overridden).toBe(true);
+      expect(mockDestination.enabled).toBe(true); // Original unchanged
+    });
+
+    it('should clone when config override is provided even if enabled status matches', () => {
+      const override = {
+        id: 'dest1',
+        enabled: true,
+        config: { newProperty: 'value' },
+      };
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result).not.toBe(mockDestination); // Different reference due to config override
+      expect(result.enabled).toBe(true);
+      expect(result.overridden).toBe(true); // Marked as overridden due to config changes
+      expect((result.config as any).newProperty).toBe('value'); // Config override applied
+    });
+
+    it('should return original destination when no changes needed', () => {
+      const override = { id: 'dest1' }; // No enabled or config specified
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result).toBe(mockDestination); // Same reference since no changes
+      expect(result.overridden).toBeUndefined();
+    });
+
+    it('should return original destination when empty config override provided', () => {
+      const override = { id: 'dest1', config: {} }; // Empty config object
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result).toBe(mockDestination); // Same reference since no actual changes
+      expect(result.overridden).toBeUndefined();
+    });
+
+    it('should handle non-boolean enabled values', () => {
+      const override = { id: 'dest1', enabled: 'false' as any }; // Invalid type
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result).toBe(mockDestination); // Same reference since invalid enabled value
+      expect(result.enabled).toBe(true); // Original value preserved
+      expect(result.overridden).toBeUndefined();
+    });
+
+    it('should handle undefined enabled value', () => {
+      const override = { id: 'dest1', enabled: undefined };
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result).toBe(mockDestination); // Same reference since no valid changes
+      expect(result.enabled).toBe(true); // Original value preserved
+      expect(result.overridden).toBeUndefined();
+    });
+
+    it('should handle null enabled value', () => {
+      const override = { id: 'dest1', enabled: null as any };
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result).toBe(mockDestination); // Same reference since invalid enabled value
+      expect(result.enabled).toBe(true); // Original value preserved
+      expect(result.overridden).toBeUndefined();
+    });
+
+    it('should clone destination when cloneId is provided even with no other changes', () => {
+      const override = { id: 'dest1', enabled: true }; // Same as existing
+      const result = applyOverrideToDestination(mockDestination, override, 'clone1');
+
+      expect(result).not.toBe(mockDestination); // Different reference due to cloneId
+      expect(result.id).toBe('dest1_clone1');
+      expect(result.userFriendlyId).toBe('dest1_friendly_clone1');
+      expect(result.enabled).toBe(true);
+      expect(result.overridden).toBeUndefined(); // No override applied, just cloned
+    });
+
+    it('should clone and override when both cloneId and enabled change are provided', () => {
+      const override = { id: 'dest1', enabled: false };
+      const result = applyOverrideToDestination(mockDestination, override, 'clone1');
+
+      expect(result).not.toBe(mockDestination); // Different reference
+      expect(result.id).toBe('dest1_clone1');
+      expect(result.userFriendlyId).toBe('dest1_friendly_clone1');
+      expect(result.enabled).toBe(false);
+      expect(result.overridden).toBe(true);
+    });
+
+    it('should preserve all other destination properties when cloning', () => {
+      const override = { id: 'dest1', enabled: false };
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result.displayName).toBe(mockDestination.displayName);
+      expect(result.shouldApplyDeviceModeTransformation).toBe(
+        mockDestination.shouldApplyDeviceModeTransformation,
+      );
+      expect(result.propagateEventsUntransformedOnError).toBe(
+        mockDestination.propagateEventsUntransformedOnError,
+      );
+      expect(result.config).toEqual(mockDestination.config);
+      expect(result.config).not.toBe(mockDestination.config); // Deep cloned
+    });
+
+    // Config override specific tests
+    it('should apply config overrides correctly', () => {
+      const override = {
+        id: 'dest1',
+        config: {
+          newProperty: 'newValue',
+          apiKey: 'overriddenKey', // Override existing property
+        },
+      };
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result).not.toBe(mockDestination);
+      expect(result.overridden).toBe(true);
+      expect((result.config as any).newProperty).toBe('newValue');
+      expect(result.config.apiKey).toBe('overriddenKey');
+      expect(result.config.eventFilteringOption).toBe('disable'); // Inherited property
+    });
+
+    it('should remove properties when config value is null', () => {
+      const override = {
+        id: 'dest1',
+        config: {
+          apiKey: null, // Remove this property
+          newProperty: 'value',
+        },
+      };
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result).not.toBe(mockDestination);
+      expect(result.overridden).toBe(true);
+      expect(result.config.apiKey).toBeUndefined(); // Property removed
+      expect((result.config as any).newProperty).toBe('value');
+      expect(result.config.eventFilteringOption).toBe('disable'); // Inherited property
+    });
+
+    it('should remove properties when config value is undefined', () => {
+      const override = {
+        id: 'dest1',
+        config: {
+          apiKey: undefined, // Remove this property
+          newProperty: 'value',
+        },
+      };
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result).not.toBe(mockDestination);
+      expect(result.overridden).toBe(true);
+      expect(result.config.apiKey).toBeUndefined(); // Property removed
+      expect((result.config as any).newProperty).toBe('value');
+      expect(result.config.eventFilteringOption).toBe('disable'); // Inherited property
+    });
+
+    it('should handle data type changes in config override', () => {
+      const override = {
+        id: 'dest1',
+        config: {
+          apiKey: { nested: 'object' }, // String to object
+          blacklistedEvents: 'stringValue', // Array to string
+        },
+      };
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result).not.toBe(mockDestination);
+      expect(result.overridden).toBe(true);
+      expect(result.config.apiKey).toEqual({ nested: 'object' });
+      expect(result.config.blacklistedEvents).toBe('stringValue');
+    });
+
+    it('should combine enabled and config overrides when destination remains enabled', () => {
+      const override = {
+        id: 'dest1',
+        enabled: true,
+        config: {
+          newProperty: 'value',
+        },
+      };
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result).not.toBe(mockDestination);
+      expect(result.enabled).toBe(true);
+      expect(result.overridden).toBe(true);
+      expect((result.config as any).newProperty).toBe('value');
+    });
+
+    it('should not apply config override when destination is disabled via enabled override', () => {
+      const override = {
+        id: 'dest1',
+        enabled: false,
+        config: {
+          newProperty: 'value',
+        },
+      };
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result).not.toBe(mockDestination);
+      expect(result.enabled).toBe(false);
+      expect(result.overridden).toBe(true); // Marked as overridden due to enabled change
+      expect((result.config as any).newProperty).toBeUndefined(); // Config override not applied
+      expect(result.config).toEqual(mockDestination.config); // Config unchanged
+    });
+
+    it('should not apply config override to originally disabled destination', () => {
+      const disabledDestination: Destination = {
+        ...mockDestination,
+        enabled: false,
+      };
+      const override = {
+        id: 'dest1',
+        config: {
+          newProperty: 'value',
+        },
+      };
+      const result = applyOverrideToDestination(disabledDestination, override);
+
+      expect(result).toBe(disabledDestination); // Same reference since no changes applied
+      expect(result.enabled).toBe(false);
+      expect(result.overridden).toBeUndefined(); // Not marked as overridden
+      expect((result.config as any).newProperty).toBeUndefined(); // Config override not applied
+    });
+
+    it('should clone destination when cloneId is provided', () => {
+      const override: SourceConfigurationOverrideDestination = { id: 'dest1' };
+      const cloneId = 'clone1';
+
+      const result = applyOverrideToDestination(mockDestination, override, cloneId);
+
+      expect(result).not.toBe(mockDestination); // Different reference
+      expect(result.id).toBe('dest1_clone1');
+      expect(result.userFriendlyId).toBe('dest1_friendly_clone1');
+      expect(result.enabled).toBe(mockDestination.enabled); // Same enabled status
+      expect(result.overridden).toBeUndefined(); // No override flag since only cloneId
+    });
+
+    it('should clone and override when both cloneId and enabled are provided', () => {
+      const override: SourceConfigurationOverrideDestination = {
+        id: 'dest1',
+        enabled: false,
+      };
+      const cloneId = 'clone1';
+
+      const result = applyOverrideToDestination(mockDestination, override, cloneId);
+
+      expect(result).not.toBe(mockDestination); // Different reference
+      expect(result.id).toBe('dest1_clone1');
+      expect(result.userFriendlyId).toBe('dest1_friendly_clone1');
+      expect(result.enabled).toBe(false);
+      expect(result.overridden).toBe(true);
+    });
+
+    it('should deep clone the destination config', () => {
+      const override: SourceConfigurationOverrideDestination = {
+        id: 'dest1',
+        enabled: false,
+      };
+
+      const result = applyOverrideToDestination(mockDestination, override);
+
+      expect(result.config).toEqual(mockDestination.config);
+      expect(result.config).not.toBe(mockDestination.config); // Different reference
+    });
+
+    it('should handle complex cloneId values', () => {
+      const override: SourceConfigurationOverrideDestination = { id: 'dest1' };
+      const cloneId = 'complex_clone-123';
+
+      const result = applyOverrideToDestination(mockDestination, override, cloneId);
+
+      expect(result.id).toBe('dest1_complex_clone-123');
+      expect(result.userFriendlyId).toBe('dest1_friendly_complex_clone-123');
+    });
+  });
+
+  describe('filterDisabledDestinations', () => {
+    it('should return only enabled destinations', () => {
+      const destinations = [
+        { id: '1', enabled: true },
+        { id: '2', enabled: false },
+        { id: '3', enabled: true },
+      ] as any[];
+
+      const result = filterDisabledDestinations(destinations);
+
+      expect(result).toHaveLength(2);
+      expect(result.every(dest => dest.enabled)).toBe(true);
+      expect(result.map(d => d.id)).toEqual(['1', '3']);
+    });
+
+    it('should return empty array if all destinations are disabled', () => {
+      const destinations = [
+        { id: '1', enabled: false },
+        { id: '2', enabled: false },
+      ] as any[];
+
+      const result = filterDisabledDestinations(destinations);
+
+      expect(result).toEqual([]);
+    });
+
+    it('should return all destinations if all are enabled', () => {
+      const destinations = [
+        { id: '1', enabled: true },
+        { id: '2', enabled: true },
+      ] as any[];
+
+      const result = filterDisabledDestinations(destinations);
+
+      expect(result).toHaveLength(2);
+      expect(result.map(d => d.id)).toEqual(['1', '2']);
+    });
+
+    it('should return empty array if input is empty', () => {
+      const result = filterDisabledDestinations([]);
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getCumulativeIntegrationsConfig', () => {
+    it('should return the cumulative integrations config', () => {
+      const destination = {
+        integration: {
+          getDataForIntegrationsObject: () => ({
+            GA4: {
+              client_id: '1234567890',
+            },
+          }),
+        },
+        userFriendlyId: 'GA4___1234567890',
+      } as unknown as Destination;
+
+      const currentIntegrationsConfig = {
+        Amplitude: {
+          someKey: 'someValue',
+        },
+      };
+
+      const integrationsConfig = getCumulativeIntegrationsConfig(
+        destination,
+        currentIntegrationsConfig,
+      );
+      expect(integrationsConfig).toEqual({
+        GA4: {
+          client_id: '1234567890',
+        },
+        Amplitude: {
+          someKey: 'someValue',
+        },
+      });
+    });
+
+    it('should return the current integrations config if the destination does not have a getDataForIntegrationsObject method', () => {
+      const destination = {
+        integration: {},
+        userFriendlyId: 'GA4___1234567890',
+      } as unknown as Destination;
+
+      const currentIntegrationsConfig = {
+        Amplitude: {
+          someKey: 'someValue',
+        },
+      };
+
+      const integrationsConfig = getCumulativeIntegrationsConfig(
+        destination,
+        currentIntegrationsConfig,
+      );
+      expect(integrationsConfig).toEqual(currentIntegrationsConfig);
+    });
+
+    it('should handle errors thrown by the getDataForIntegrationsObject method', () => {
+      const destination = {
+        integration: {
+          getDataForIntegrationsObject: () => {
+            throw new Error('Error');
+          },
+        },
+        userFriendlyId: 'GA4___1234567890',
+        displayName: 'Google Analytics 4 (GA4)',
+      } as unknown as Destination;
+
+      const currentIntegrationsConfig = {
+        Amplitude: {
+          someKey: 'someValue',
+        },
+      };
+
+      const integrationsConfig = getCumulativeIntegrationsConfig(
+        destination,
+        currentIntegrationsConfig,
+        defaultErrorHandler,
+      );
+      expect(integrationsConfig).toEqual(currentIntegrationsConfig);
+
+      expect(defaultErrorHandler.onError).toHaveBeenCalledWith({
+        error: new Error('Error'),
+        context: 'DeviceModeDestinationsPlugin',
+        customMessage: 'Failed to get integrations data for destination "GA4___1234567890".',
+        groupingHash: 'Failed to get integrations data for destination "Google Analytics 4 (GA4)".',
+        category: 'integrations',
+      });
+    });
+
+    it('should handle null or undefined destination integration', () => {
+      const destination = {
+        integration: null,
+        userFriendlyId: 'GA4___1234567890',
+      } as unknown as Destination;
+
+      const currentConfig = { Amplitude: { key: 'value' } };
+
+      const result = getCumulativeIntegrationsConfig(destination, currentConfig);
+
+      expect(result).toEqual(currentConfig);
+    });
+
+    it('should handle destination integration without getDataForIntegrationsObject method', () => {
+      const destination = {
+        integration: { someOtherMethod: () => {} },
+        userFriendlyId: 'GA4___1234567890',
+      } as unknown as Destination;
+
+      const currentConfig = { Amplitude: { key: 'value' } };
+
+      const result = getCumulativeIntegrationsConfig(destination, currentConfig);
+
+      expect(result).toEqual(currentConfig);
+    });
+
+    it('should merge data from getDataForIntegrationsObject', () => {
+      const destination = {
+        integration: {
+          getDataForIntegrationsObject: () => ({
+            GA4: { client_id: '12345' },
+            NewIntegration: { data: 'test' },
+          }),
+        },
+        userFriendlyId: 'GA4___1234567890',
+      } as unknown as Destination;
+
+      const currentConfig = {
+        Amplitude: { key: 'value' },
+      };
+
+      const result = getCumulativeIntegrationsConfig(destination, currentConfig);
+
+      expect(result).toEqual({
+        Amplitude: { key: 'value' },
+        GA4: { client_id: '12345' },
+        NewIntegration: { data: 'test' },
+      });
+    });
+
+    it('should handle getDataForIntegrationsObject returning null/undefined', () => {
+      const destination = {
+        integration: {
+          getDataForIntegrationsObject: () => null,
+        },
+        userFriendlyId: 'GA4___1234567890',
+      } as unknown as Destination;
+
+      const currentConfig = { Amplitude: { key: 'value' } };
+
+      const result = getCumulativeIntegrationsConfig(destination, currentConfig);
+
+      expect(result).toEqual(currentConfig);
+    });
+
+    it('should work without error handler parameter', () => {
+      const destination = {
+        integration: {
+          getDataForIntegrationsObject: () => {
+            throw new Error('Test error');
+          },
+        },
+        userFriendlyId: 'GA4___1234567890',
+      } as unknown as Destination;
+
+      const currentConfig = { Amplitude: { key: 'value' } };
+
+      expect(() => {
+        getCumulativeIntegrationsConfig(destination, currentConfig);
+      }).not.toThrow();
+    });
+  });
+
+  describe('initializeDestination', () => {
+    const destSDKIdentifier = 'GA4_RS';
+    const sdkTypeName = 'GA4';
+    const initMock = jest.fn();
+
+    beforeEach(() => {
+      // Mock the SDK instance
+      (window as any).rudderanalytics = {
+        getAnalyticsInstance: () => {
+          return {};
+        },
+      };
+
+      // Mock the destination SDK
+      (window as any)[destSDKIdentifier] = {
+        [sdkTypeName]: class {
+          // eslint-disable-next-line @typescript-eslint/no-useless-constructor
+          constructor() {}
+          init = initMock;
+        },
+      };
+    });
+
+    afterEach(() => {
+      initMock.mockClear();
+
+      delete (window as any)[destSDKIdentifier];
+      delete (window as any).rudderanalytics;
+    });
+
+    it('should initialize the destination', () => {
+      const destination = {
+        userFriendlyId: 'GA4___1234567890',
+        displayName: 'Google Analytics 4 (GA4)',
+      } as unknown as Destination;
+
+      initializeDestination(
+        destination,
+        state,
+        destSDKIdentifier,
+        sdkTypeName,
+        defaultErrorHandler,
+      );
+
+      expect(initMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle errors thrown by the integration during initialization', () => {
+      // Mock the destination SDK
+      (window as any)[destSDKIdentifier] = {
+        [sdkTypeName]: class {
+          // eslint-disable-next-line @typescript-eslint/no-useless-constructor
+          constructor() {}
+          init = () => {
+            throw new Error('Error');
+          };
+        },
+      };
+
+      const destination = {
+        userFriendlyId: 'GA4___1234567890',
+        displayName: 'Google Analytics 4 (GA4)',
+      } as unknown as Destination;
+
+      initializeDestination(
+        destination,
+        state,
+        destSDKIdentifier,
+        sdkTypeName,
+        defaultErrorHandler,
+      );
+
+      expect(defaultErrorHandler.onError).toHaveBeenCalledWith({
+        error: new Error('Error'),
+        context: 'DeviceModeDestinationsPlugin',
+        customMessage: 'Failed to initialize integration for destination "GA4___1234567890".',
+        groupingHash:
+          'Failed to initialize integration for destination "Google Analytics 4 (GA4)".',
+        category: 'integrations',
+      });
+    });
+
+    it('should handle when the integration does not get ready on time', done => {
+      jest.useFakeTimers();
+      jest.setSystemTime(0);
+
+      // Mock the destination SDK
+      (window as any)[destSDKIdentifier] = {
+        [sdkTypeName]: class {
+          // eslint-disable-next-line @typescript-eslint/no-useless-constructor
+          constructor() {}
+          init = () => initMock();
+          isReady = () => false;
+        },
+      };
+
+      const destination = {
+        userFriendlyId: 'GA4___1234567890',
+        displayName: 'Google Analytics 4 (GA4)',
+      } as unknown as Destination;
+
+      initializeDestination(
+        destination,
+        state,
+        destSDKIdentifier,
+        sdkTypeName,
+        defaultErrorHandler,
+      );
+
+      // Fast-forward the timers to cause a timeout
+      jest.advanceTimersByTime(11000);
+
+      // Just asynchronously wait for the next tick to ensure that the error handler is called
+      setTimeout(() => {
+        expect(defaultErrorHandler.onError).toHaveBeenCalledTimes(1);
+        expect(defaultErrorHandler.onError).toHaveBeenCalledWith({
+          error: new Error('A timeout of 11000 ms occurred'),
+          context: 'DeviceModeDestinationsPlugin',
+          customMessage:
+            'Failed to get the ready status from integration for destination "GA4___1234567890"',
+          groupingHash:
+            'Failed to get the ready status from integration for destination "Google Analytics 4 (GA4)"',
+          category: 'integrations',
+        });
+
+        jest.useRealTimers();
+
+        done();
+      }, 1);
+
+      // Fast-forward the timers to the next tick asynchronously
+      jest.advanceTimersByTimeAsync(1);
+    });
+
+    it('should categorize initialization errors with integrations category', () => {
+      const mockState = {
+        lifecycle: {
+          integrationsCDNPath: { value: 'https://cdn.rudderlabs.com/v3' },
+        },
+        nativeDestinations: {
+          failedDestinations: { value: [] },
+          initializedDestinations: { value: [] },
+          integrationsConfig: { value: {} },
+        },
+      } as any;
+
+      const mockDestination = {
+        id: 'dest1',
+        displayName: 'Test Destination',
+        userFriendlyId: 'Test-Destination___dest1',
+        enabled: true,
+        shouldApplyDeviceModeTransformation: false,
+        propagateEventsUntransformedOnError: false,
+        config: {
+          apiKey: 'test-key',
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable' as const,
+          consentManagement: [],
+          connectionMode: 'device' as const,
+        },
+      };
+
+      const mockSDKClass = jest.fn().mockImplementation(() => {
+        throw new Error('Initialization failed');
+      });
+
+      // Mock the global SDK object
+      (globalThis as any).TestDestination_RS = {
+        TestDestination: mockSDKClass,
+      };
+
+      initializeDestination(
+        mockDestination,
+        mockState,
+        'TestDestination_RS',
+        'TestDestination',
+        defaultErrorHandler,
+        defaultLogger,
+      );
+
+      expect(defaultErrorHandler.onError).toHaveBeenCalledWith({
+        error: expect.any(Error),
+        context: 'DeviceModeDestinationsPlugin',
+        customMessage:
+          'Failed to initialize integration for destination "Test-Destination___dest1".',
+        groupingHash: 'Failed to initialize integration for destination "Test Destination".',
+        category: 'integrations',
+      });
+
+      // Clean up
+      delete (globalThis as any).TestDestination_RS;
+    });
+
+    it('should categorize ready check errors with integrations category', () => {
+      const mockState = {
+        lifecycle: {
+          integrationsCDNPath: { value: 'https://cdn.rudderlabs.com/v3' },
+        },
+        nativeDestinations: {
+          failedDestinations: { value: [] },
+          initializedDestinations: { value: [] },
+          integrationsConfig: { value: {} },
+        },
+      } as any;
+
+      const mockDestination = {
+        id: 'dest1',
+        displayName: 'Test Destination',
+        userFriendlyId: 'Test-Destination___dest1',
+        enabled: true,
+        shouldApplyDeviceModeTransformation: false,
+        propagateEventsUntransformedOnError: false,
+        config: {
+          apiKey: 'test-key',
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable' as const,
+          consentManagement: [],
+          connectionMode: 'device' as const,
+        },
+      };
+
+      const mockInstance = {
+        init: jest.fn(),
+        isLoaded: jest.fn(() => false), // This will cause the ready check to timeout
+        isReady: jest.fn(() => false),
+      };
+
+      const mockSDKClass = jest.fn().mockImplementation(() => mockInstance);
+
+      // Mock the global SDK object
+      (globalThis as any).TestDestination_RS = {
+        TestDestination: mockSDKClass,
+      };
+
+      initializeDestination(
+        mockDestination,
+        mockState,
+        'TestDestination_RS',
+        'TestDestination',
+        defaultErrorHandler,
+        defaultLogger,
+      );
+
+      // Wait for the ready check to timeout and trigger the error
+      setTimeout(() => {
+        expect(defaultErrorHandler.onError).toHaveBeenCalledWith({
+          error: expect.any(Error),
+          context: 'DeviceModeDestinationsPlugin',
+          customMessage: 'Failed to check destination "Test-Destination___dest1" ready state.',
+          groupingHash: 'Failed to check destination "Test Destination" ready state.',
+          category: 'integrations',
+        });
+      }, 100);
+
+      // Clean up
+      delete (globalThis as any).TestDestination_RS;
+    });
+
+    it('should categorize integrations data errors with integrations category', () => {
+      const mockState = {
+        lifecycle: {
+          integrationsCDNPath: { value: 'https://cdn.rudderlabs.com/v3' },
+        },
+        nativeDestinations: {
+          failedDestinations: { value: [] },
+          initializedDestinations: { value: [] },
+          integrationsConfig: { value: {} },
+        },
+      } as any;
+
+      const mockDestination = {
+        id: 'dest1',
+        displayName: 'Test Destination',
+        userFriendlyId: 'Test-Destination___dest1',
+        enabled: true,
+        shouldApplyDeviceModeTransformation: false,
+        propagateEventsUntransformedOnError: false,
+        config: {
+          apiKey: 'test-key',
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable' as const,
+          consentManagement: [],
+          connectionMode: 'device' as const,
+        },
+      };
+
+      const mockInstance = {
+        init: jest.fn(),
+        isLoaded: jest.fn(() => true),
+        isReady: jest.fn(() => true),
+        getDataForIntegrationsObject: jest.fn(() => {
+          throw new Error('Failed to get integrations data');
+        }),
+      };
+
+      const mockSDKClass = jest.fn().mockImplementation(() => mockInstance);
+
+      // Mock the global SDK object
+      (globalThis as any).TestDestination_RS = {
+        TestDestination: mockSDKClass,
+      };
+
+      initializeDestination(
+        mockDestination,
+        mockState,
+        'TestDestination_RS',
+        'TestDestination',
+        defaultErrorHandler,
+        defaultLogger,
+      );
+
+      // Wait for the integrations data error to be processed
+      setTimeout(() => {
+        expect(defaultErrorHandler.onError).toHaveBeenCalledWith({
+          error: expect.any(Error),
+          context: 'DeviceModeDestinationsPlugin',
+          customMessage:
+            'Failed to get integrations data for destination "Test-Destination___dest1".',
+          groupingHash: 'Failed to get integrations data for destination "Test Destination".',
+          category: 'integrations',
+        });
+      }, 100);
+
+      // Clean up
+      delete (globalThis as any).TestDestination_RS;
+    });
+  });
+
+  describe('getCumulativeIntegrationsConfig', () => {
+    it('should categorize integration data errors with integrations category', () => {
+      const mockDestination = {
+        id: 'dest1',
+        displayName: 'Test Destination',
+        userFriendlyId: 'Test-Destination___dest1',
+        integration: {
+          getDataForIntegrationsObject: jest.fn(() => {
+            throw new Error('Failed to get integrations data');
+          }),
+        },
+      } as any;
+
+      const currentConfig = { existingIntegration: true };
+
+      getCumulativeIntegrationsConfig(mockDestination, currentConfig, defaultErrorHandler);
+
+      expect(defaultErrorHandler.onError).toHaveBeenCalledWith({
+        error: expect.any(Error),
+        context: 'DeviceModeDestinationsPlugin',
+        customMessage:
+          'Failed to get integrations data for destination "Test-Destination___dest1".',
+        groupingHash: 'Failed to get integrations data for destination "Test Destination".',
+        category: 'integrations',
+      });
+    });
+
+    it('should not call error handler when integration data is retrieved successfully', () => {
+      const mockDestination = {
+        id: 'dest1',
+        displayName: 'Test Destination',
+        userFriendlyId: 'Test-Destination___dest1',
+        integration: {
+          getDataForIntegrationsObject: jest.fn(() => ({
+            newIntegration: true,
+          })),
+        },
+      } as any;
+
+      const currentConfig = { existingIntegration: true };
+
+      const result = getCumulativeIntegrationsConfig(
+        mockDestination,
+        currentConfig,
+        defaultErrorHandler,
+      );
+
+      expect(defaultErrorHandler.onError).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        existingIntegration: true,
+        newIntegration: true,
+      });
+    });
+  });
+
+  describe('validateCustomIntegration', () => {
+    const mockValidIntegration = {
+      isReady: jest.fn().mockReturnValue(true),
+      init: jest.fn(),
+      track: jest.fn(),
+      page: jest.fn(),
+      identify: jest.fn(),
+      group: jest.fn(),
+      alias: jest.fn(),
+    };
+
+    let mockCustomDestination: Destination;
+
+    beforeEach(() => {
+      resetState();
+      mockCustomDestination = {
+        id: 'custom-dest-123',
+        displayName: 'Custom Device Mode',
+        userFriendlyId: 'custom-dest-123',
+        enabled: true,
+        shouldApplyDeviceModeTransformation: false,
+        propagateEventsUntransformedOnError: false,
+        config: {
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable' as const,
+          connectionMode: 'device' as const,
+          consentManagement: [],
+        },
+        isCustomIntegration: true,
+      };
+
+      state.nativeDestinations.configuredDestinations.value = [mockCustomDestination];
+      jest.clearAllMocks();
+    });
+
+    describe('destination validation', () => {
+      it('should return destination object for valid destination ID with valid integration', () => {
+        const validDestinationId = 'custom-dest-123';
+        const result = validateCustomIntegration(
+          validDestinationId,
+          mockValidIntegration,
+          state,
+          defaultLogger,
+        );
+
+        expect(result).toEqual(mockCustomDestination);
+        expect(defaultLogger.error).not.toHaveBeenCalled();
+      });
+
+      it('should return undefined for non-existent destination ID', () => {
+        const invalidDestinationId = 'non-existent-dest';
+        const result = validateCustomIntegration(
+          invalidDestinationId,
+          mockValidIntegration,
+          state,
+          defaultLogger,
+        );
+
+        expect(result).toBeUndefined();
+        expect(defaultLogger.error).toHaveBeenCalledWith(
+          'DeviceModeDestinationsPlugin:: The destination ID "non-existent-dest" does not correspond to a custom device mode destination.',
+        );
+      });
+
+      it('should return the destination object for disabled destination', () => {
+        const disabledDestination = {
+          ...mockCustomDestination,
+          id: 'disabled-dest',
+          enabled: false,
+        };
+        state.nativeDestinations.configuredDestinations.value = [disabledDestination];
+
+        const result = validateCustomIntegration(
+          'disabled-dest',
+          mockValidIntegration,
+          state,
+          defaultLogger,
+        );
+
+        expect(result).toBeDefined();
+        expect(result).toEqual(disabledDestination);
+      });
+
+      it('should return undefined if no custom destinations are configured', () => {
+        const wrongDisplayNameDestination = {
+          ...mockCustomDestination,
+          id: 'wrong-dest',
+          displayName: 'Google Analytics',
+          isCustomIntegration: false,
+        };
+        state.nativeDestinations.configuredDestinations.value = [wrongDisplayNameDestination];
+
+        const result = validateCustomIntegration(
+          'wrong-dest',
+          mockValidIntegration,
+          state,
+          defaultLogger,
+        );
+
+        expect(result).toBeUndefined();
+        expect(defaultLogger.error).toHaveBeenCalledWith(
+          'DeviceModeDestinationsPlugin:: The destination ID "wrong-dest" does not correspond to a custom device mode destination.',
+        );
+      });
+    });
+
+    describe('integration already exists validation', () => {
+      it('should return undefined when integration already exists for destination', () => {
+        const destinationWithIntegration = {
+          ...mockCustomDestination,
+          integration: { isReady: jest.fn() },
+        };
+        state.nativeDestinations.configuredDestinations.value = [destinationWithIntegration];
+
+        const result = validateCustomIntegration(
+          'custom-dest-123',
+          mockValidIntegration,
+          state,
+          defaultLogger,
+        );
+
+        expect(result).toBeUndefined();
+        expect(defaultLogger.error).toHaveBeenCalledWith(
+          'DeviceModeDestinationsPlugin:: A custom integration with destination ID "custom-dest-123" was already added.',
+        );
+      });
+
+      it('should return destination when no integration exists yet', () => {
+        const result = validateCustomIntegration(
+          'custom-dest-123',
+          mockValidIntegration,
+          state,
+          defaultLogger,
+        );
+
+        expect(result).toEqual(mockCustomDestination);
+        expect(defaultLogger.error).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('integration validation', () => {
+      const validDestinationId = 'custom-dest-123';
+
+      it('should return undefined for undefined integration', () => {
+        const result = validateCustomIntegration(
+          validDestinationId,
+          undefined as any,
+          state,
+          defaultLogger,
+        );
+
+        expect(result).toBeUndefined();
+        expect(defaultLogger.error).toHaveBeenCalledWith(
+          'DeviceModeDestinationsPlugin:: The custom integration added for destination ID "custom-dest-123" does not match the expected implementation format.',
+        );
+      });
+
+      it('should return undefined for null integration', () => {
+        const result = validateCustomIntegration(
+          validDestinationId,
+          null as any,
+          state,
+          defaultLogger,
+        );
+
+        expect(result).toBeUndefined();
+        expect(defaultLogger.error).toHaveBeenCalledWith(
+          'DeviceModeDestinationsPlugin:: The custom integration added for destination ID "custom-dest-123" does not match the expected implementation format.',
+        );
+      });
+
+      it('should return undefined for integration missing isReady method', () => {
+        const invalidIntegration = {
+          init: jest.fn(),
+          track: jest.fn(),
+          // Missing isReady method
+        };
+
+        const result = validateCustomIntegration(
+          validDestinationId,
+          invalidIntegration as any,
+          state,
+          defaultLogger,
+        );
+
+        expect(result).toBeUndefined();
+        expect(defaultLogger.error).toHaveBeenCalledWith(
+          'DeviceModeDestinationsPlugin:: The custom integration added for destination ID "custom-dest-123" does not match the expected implementation format.',
+        );
+      });
+
+      it('should return undefined for integration with non-function isReady', () => {
+        const invalidIntegration = {
+          isReady: 'not a function',
+        };
+
+        const result = validateCustomIntegration(
+          validDestinationId,
+          invalidIntegration as any,
+          state,
+          defaultLogger,
+        );
+
+        expect(result).toBeUndefined();
+        expect(defaultLogger.error).toHaveBeenCalledWith(
+          'DeviceModeDestinationsPlugin:: The custom integration added for destination ID "custom-dest-123" does not match the expected implementation format.',
+        );
+      });
+
+      it('should return undefined when optional methods are provided but not functions', () => {
+        const testCases = [
+          { method: 'init', value: 'not a function' },
+          { method: 'track', value: 123 },
+          { method: 'page', value: true },
+          { method: 'identify', value: {} },
+          { method: 'group', value: [] },
+          { method: 'alias', value: null },
+        ];
+
+        testCases.forEach(({ method, value }) => {
+          jest.clearAllMocks();
+          const invalidIntegration = {
+            isReady: jest.fn().mockReturnValue(true),
+            [method]: value,
+          };
+
+          const result = validateCustomIntegration(
+            validDestinationId,
+            invalidIntegration as any,
+            state,
+            defaultLogger,
+          );
+
+          expect(result).toBeUndefined();
+          expect(defaultLogger.error).toHaveBeenCalledWith(
+            'DeviceModeDestinationsPlugin:: The custom integration added for destination ID "custom-dest-123" does not match the expected implementation format.',
+          );
+        });
+      });
+
+      it('should return destination for integration with only isReady method', () => {
+        const minimalIntegration = {
+          isReady: jest.fn().mockReturnValue(true),
+        };
+
+        const result = validateCustomIntegration(
+          validDestinationId,
+          minimalIntegration,
+          state,
+          defaultLogger,
+        );
+
+        expect(result).toEqual(mockCustomDestination);
+        expect(defaultLogger.error).not.toHaveBeenCalled();
+      });
+
+      it('should return destination for integration with all valid optional methods', () => {
+        const fullIntegration = {
+          isReady: jest.fn().mockReturnValue(true),
+          init: jest.fn(),
+          track: jest.fn(),
+          page: jest.fn(),
+          identify: jest.fn(),
+          group: jest.fn(),
+          alias: jest.fn(),
+        };
+
+        const result = validateCustomIntegration(
+          validDestinationId,
+          fullIntegration,
+          state,
+          defaultLogger,
+        );
+
+        expect(result).toEqual(mockCustomDestination);
+        expect(defaultLogger.error).not.toHaveBeenCalled();
+      });
+
+      it('should return destination for integration with some valid optional methods', () => {
+        const partialIntegration = {
+          isReady: jest.fn().mockReturnValue(true),
+          init: jest.fn(),
+          track: jest.fn(),
+          // page, identify, group, alias methods are undefined (not provided)
+        };
+
+        const result = validateCustomIntegration(
+          validDestinationId,
+          partialIntegration,
+          state,
+          defaultLogger,
+        );
+
+        expect(result).toEqual(mockCustomDestination);
+        expect(defaultLogger.error).not.toHaveBeenCalled();
+      });
+
+      it('should validate each method independently', () => {
+        const mixedIntegration = {
+          isReady: jest.fn().mockReturnValue(true),
+          init: jest.fn(), // valid
+          track: 'invalid', // invalid - not a function
+          page: jest.fn(), // valid
+        };
+
+        const result = validateCustomIntegration(
+          validDestinationId,
+          mixedIntegration as any,
+          state,
+          defaultLogger,
+        );
+
+        expect(result).toBeUndefined();
+        expect(defaultLogger.error).toHaveBeenCalledWith(
+          'DeviceModeDestinationsPlugin:: The custom integration added for destination ID "custom-dest-123" does not match the expected implementation format.',
+        );
+      });
+    });
+  });
+
+  describe('addIntegrationToDestination', () => {
+    const mockAnalyticsInstance = {
+      track: jest.fn(),
+      page: jest.fn(),
+      identify: jest.fn(),
+      group: jest.fn(),
+      alias: jest.fn(),
+      getAnonymousId: jest.fn(),
+      getUserId: jest.fn(),
+      getUserTraits: jest.fn(),
+      getGroupId: jest.fn(),
+      getGroupTraits: jest.fn(),
+      getSessionId: jest.fn(),
+    };
+
+    beforeEach(() => {
+      resetState();
+      state.lifecycle.safeAnalyticsInstance.value = mockAnalyticsInstance;
+      jest.clearAllMocks();
+    });
+
+    it('should add integration methods to destination object', () => {
+      const testDestination: Destination = {
+        id: 'test-dest-123',
+        displayName: 'Custom Device Mode',
+        userFriendlyId: 'test-dest-123',
+        enabled: true,
+        shouldApplyDeviceModeTransformation: false,
+        propagateEventsUntransformedOnError: false,
+        config: {
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable' as const,
+          connectionMode: 'device' as const,
+          consentManagement: [],
+        },
+        isCustomIntegration: true,
+      };
+
+      const mockInit = jest.fn();
+      const mockTrack = jest.fn();
+      const mockPage = jest.fn();
+      const mockIdentify = jest.fn();
+      const mockGroup = jest.fn();
+      const mockAlias = jest.fn();
+      const mockIsReady = jest.fn().mockReturnValue(true);
+
+      const mockIntegration = {
+        init: mockInit,
+        track: mockTrack,
+        page: mockPage,
+        identify: mockIdentify,
+        group: mockGroup,
+        alias: mockAlias,
+        isReady: mockIsReady,
+      };
+
+      addIntegrationToDestination(testDestination, mockIntegration, state, defaultLogger);
+
+      expect(testDestination.integration).toBeDefined();
+      expect(testDestination.integration!.init).toBeDefined();
+      expect(testDestination.integration!.track).toBeDefined();
+      expect(testDestination.integration!.page).toBeDefined();
+      expect(testDestination.integration!.identify).toBeDefined();
+      expect(testDestination.integration!.group).toBeDefined();
+      expect(testDestination.integration!.alias).toBeDefined();
+      expect(testDestination.integration!.isReady).toBeDefined();
+    });
+
+    it('should handle minimal integration with only isReady method', () => {
+      const testDestination: Destination = {
+        id: 'test-dest-minimal',
+        displayName: 'Custom Device Mode',
+        userFriendlyId: 'test-dest-minimal',
+        enabled: true,
+        shouldApplyDeviceModeTransformation: false,
+        propagateEventsUntransformedOnError: false,
+        config: {
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable' as const,
+          connectionMode: 'device' as const,
+          consentManagement: [],
+        },
+        isCustomIntegration: true,
+      };
+
+      const mockIsReady = jest.fn().mockReturnValue(true);
+      const mockIntegration = {
+        isReady: mockIsReady,
+      };
+
+      addIntegrationToDestination(testDestination, mockIntegration, state, defaultLogger);
+
+      expect(testDestination.integration).toBeDefined();
+      expect(testDestination.integration!.isReady).toBeDefined();
+      expect(testDestination.integration!.init).toBeUndefined();
+      expect(testDestination.integration!.track).toBeUndefined();
+      expect(testDestination.integration!.page).toBeUndefined();
+      expect(testDestination.integration!.identify).toBeUndefined();
+      expect(testDestination.integration!.group).toBeUndefined();
+      expect(testDestination.integration!.alias).toBeUndefined();
+    });
+
+    it('should properly wrap integration methods with analytics instance and logger', () => {
+      const testDestination: Destination = {
+        id: 'wrapper-test-dest',
+        displayName: 'Custom Device Mode',
+        userFriendlyId: 'wrapper-test-dest',
+        enabled: true,
+        shouldApplyDeviceModeTransformation: false,
+        propagateEventsUntransformedOnError: false,
+        config: {
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable' as const,
+          connectionMode: 'device' as const,
+          consentManagement: [],
+        },
+      };
+
+      const mockInit = jest.fn();
+      const mockTrack = jest.fn();
+      const mockIsReady = jest.fn().mockReturnValue(true);
+
+      const mockIntegration = {
+        init: mockInit,
+        track: mockTrack,
+        isReady: mockIsReady,
+      };
+
+      const mockEvent = {
+        message: {
+          type: 'track',
+          event: 'Test Event',
+          properties: { test: 'value' },
+        },
+      } as any;
+
+      addIntegrationToDestination(testDestination, mockIntegration, state, defaultLogger);
+
+      // Test init wrapper
+      testDestination.integration?.init!();
+      expect(mockInit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable',
+          connectionMode: 'device',
+          consentManagement: [],
+        }),
+        mockAnalyticsInstance,
+        expect.objectContaining({
+          log: expect.any(Function),
+          info: expect.any(Function),
+          debug: expect.any(Function),
+          warn: expect.any(Function),
+          error: expect.any(Function),
+          setMinLogLevel: expect.any(Function),
+        }),
+      );
+
+      // Test track wrapper
+      testDestination.integration?.track!(mockEvent);
+      expect(mockTrack).toHaveBeenCalledWith(
+        mockAnalyticsInstance,
+        expect.objectContaining({
+          log: expect.any(Function),
+          info: expect.any(Function),
+          debug: expect.any(Function),
+          warn: expect.any(Function),
+          error: expect.any(Function),
+          setMinLogLevel: expect.any(Function),
+        }),
+        mockEvent,
+      );
+
+      // Test isReady wrapper
+      const isReady = testDestination.integration?.isReady();
+      expect(mockIsReady).toHaveBeenCalledWith(
+        mockAnalyticsInstance,
+        expect.objectContaining({
+          log: expect.any(Function),
+          info: expect.any(Function),
+          debug: expect.any(Function),
+          warn: expect.any(Function),
+          error: expect.any(Function),
+          setMinLogLevel: expect.any(Function),
+        }),
+      );
+      expect(isReady).toBe(true);
+    });
+
+    it('should handle all event types correctly', () => {
+      const testDestination: Destination = {
+        id: 'all-methods-dest',
+        displayName: 'Custom Device Mode',
+        userFriendlyId: 'all-methods-dest',
+        enabled: true,
+        shouldApplyDeviceModeTransformation: false,
+        propagateEventsUntransformedOnError: false,
+        config: {
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable' as const,
+          connectionMode: 'device' as const,
+          consentManagement: [],
+        },
+      };
+
+      const mockInit = jest.fn();
+      const mockTrack = jest.fn();
+      const mockPage = jest.fn();
+      const mockIdentify = jest.fn();
+      const mockGroup = jest.fn();
+      const mockAlias = jest.fn();
+      const mockIsReady = jest.fn().mockReturnValue(true);
+
+      const mockIntegration = {
+        init: mockInit,
+        track: mockTrack,
+        page: mockPage,
+        identify: mockIdentify,
+        group: mockGroup,
+        alias: mockAlias,
+        isReady: mockIsReady,
+      };
+
+      addIntegrationToDestination(testDestination, mockIntegration, state, defaultLogger);
+
+      const mockEvent = { message: { type: 'track', event: 'Test Event' } } as any;
+      const mockPageEvent = { message: { type: 'page', name: 'Test Page' } } as any;
+      const mockIdentifyEvent = { message: { type: 'identify', userId: 'user123' } } as any;
+      const mockGroupEvent = { message: { type: 'group', groupId: 'group123' } } as any;
+      const mockAliasEvent = { message: { type: 'alias', previousId: 'old123' } } as any;
+
+      // Test all method wrappers
+      testDestination.integration?.init!();
+      testDestination.integration?.track!(mockEvent);
+      testDestination.integration?.page!(mockPageEvent);
+      testDestination.integration?.identify!(mockIdentifyEvent);
+      testDestination.integration?.group!(mockGroupEvent);
+      testDestination.integration?.alias!(mockAliasEvent);
+
+      const expectedLogger = expect.objectContaining({
+        log: expect.any(Function),
+        info: expect.any(Function),
+        debug: expect.any(Function),
+        warn: expect.any(Function),
+        error: expect.any(Function),
+        setMinLogLevel: expect.any(Function),
+      });
+
+      expect(mockInit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable',
+          connectionMode: 'device',
+          consentManagement: [],
+        }),
+        mockAnalyticsInstance,
+        expectedLogger,
+      );
+      expect(mockTrack).toHaveBeenCalledWith(mockAnalyticsInstance, expectedLogger, mockEvent);
+      expect(mockPage).toHaveBeenCalledWith(mockAnalyticsInstance, expectedLogger, mockPageEvent);
+      expect(mockIdentify).toHaveBeenCalledWith(
+        mockAnalyticsInstance,
+        expectedLogger,
+        mockIdentifyEvent,
+      );
+      expect(mockGroup).toHaveBeenCalledWith(mockAnalyticsInstance, expectedLogger, mockGroupEvent);
+      expect(mockAlias).toHaveBeenCalledWith(mockAnalyticsInstance, expectedLogger, mockAliasEvent);
+    });
+
+    it('should use the analytics instance from state', () => {
+      const testDestination: Destination = {
+        id: 'state-test-dest',
+        displayName: 'Custom Device Mode',
+        userFriendlyId: 'state-test-dest',
+        enabled: true,
+        shouldApplyDeviceModeTransformation: false,
+        propagateEventsUntransformedOnError: false,
+        config: {
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable' as const,
+          connectionMode: 'device' as const,
+          consentManagement: [],
+        },
+      };
+
+      const customAnalyticsInstance = { customMethod: jest.fn() };
+      state.lifecycle.safeAnalyticsInstance.value = customAnalyticsInstance as any;
+
+      const mockInit = jest.fn();
+      const mockIntegration = {
+        init: mockInit,
+        isReady: jest.fn().mockReturnValue(true),
+      };
+
+      addIntegrationToDestination(testDestination, mockIntegration, state, defaultLogger);
+
+      testDestination.integration?.init!();
+      expect(mockInit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable',
+          connectionMode: 'device' as const,
+          consentManagement: [],
+        }),
+        customAnalyticsInstance,
+        expect.objectContaining({
+          log: expect.any(Function),
+          info: expect.any(Function),
+          debug: expect.any(Function),
+          warn: expect.any(Function),
+          error: expect.any(Function),
+          setMinLogLevel: expect.any(Function),
+        }),
+      );
+    });
+
+    it('should work with realistic custom integration implementation that uses analytics and logger APIs', () => {
+      const testDestination: Destination = {
+        id: 'realistic-test-dest',
+        displayName: 'Custom Device Mode',
+        userFriendlyId: 'realistic-test-dest',
+        enabled: true,
+        shouldApplyDeviceModeTransformation: false,
+        propagateEventsUntransformedOnError: false,
+        config: {
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable' as const,
+          connectionMode: 'device' as const,
+          consentManagement: [],
+        },
+      };
+
+      let isInitialized = false;
+      const trackedEvents: any[] = [];
+
+      // Mock a realistic custom integration
+      const realisticIntegration = {
+        init: (destinationConfig: any, analytics: any, logger: any) => {
+          logger.info('Initializing CustomAnalytics integration');
+
+          // Use analytics API to get user information
+          const userId = analytics.getUserId();
+          const anonymousId = analytics.getAnonymousId();
+
+          logger.debug(
+            `CustomAnalytics: Found user ${userId || 'anonymous'} with ID ${anonymousId}`,
+          );
+
+          // Simulate API initialization
+          (global as any).customAnalytics = {
+            userId,
+            anonymousId,
+            ready: true,
+          };
+
+          isInitialized = true;
+          logger.info('CustomAnalytics integration initialized successfully');
+        },
+
+        track: (analytics: any, logger: any, event: any) => {
+          logger.debug('CustomAnalytics: Processing track event', event.message);
+
+          const userId = analytics.getUserId();
+          const sessionId = analytics.getSessionId();
+
+          const processedEvent = {
+            ...event.message,
+            userId,
+            sessionId,
+            timestamp: new Date().toISOString(),
+            processed: true,
+          };
+
+          trackedEvents.push(processedEvent);
+          logger.info(`CustomAnalytics: Successfully tracked event "${event.message.event}"`);
+        },
+
+        page: (analytics: any, logger: any, event: any) => {
+          logger.debug('CustomAnalytics: Processing page event', event.message);
+
+          const userTraits = analytics.getUserTraits();
+          const processedPageEvent = {
+            ...event.message,
+            userTraits,
+            type: 'page_view',
+            timestamp: new Date().toISOString(),
+          };
+
+          trackedEvents.push(processedPageEvent);
+          logger.info(
+            `CustomAnalytics: Successfully tracked page "${event.message.name || 'Unknown'}"`,
+          );
+        },
+
+        identify: (analytics: any, logger: any, event: any) => {
+          logger.debug('CustomAnalytics: Processing identify event', event.message);
+
+          // Simulate updating user profile
+          const { userId, traits } = event.message;
+          if (userId && traits) {
+            logger.info(`CustomAnalytics: Updating profile for user ${userId}`, traits);
+          } else {
+            logger.warn('CustomAnalytics: Identify event missing userId or traits');
+          }
+        },
+
+        isReady: (analytics: any, logger: any) => {
+          logger.debug('CustomAnalytics: Checking ready status');
+          const ready = isInitialized && (global as any).customAnalytics?.ready;
+          logger.debug(`CustomAnalytics: Ready status = ${ready}`);
+          return ready;
+        },
+      };
+
+      // Setup expected mock values
+      (mockAnalyticsInstance.getUserId as jest.Mock).mockReturnValue('user-123');
+      (mockAnalyticsInstance.getAnonymousId as jest.Mock).mockReturnValue('anon-456');
+      (mockAnalyticsInstance.getSessionId as jest.Mock).mockReturnValue(12345);
+      (mockAnalyticsInstance.getUserTraits as jest.Mock).mockReturnValue({
+        name: 'John Doe',
+        email: 'john@example.com',
+      });
+
+      addIntegrationToDestination(testDestination, realisticIntegration, state, defaultLogger);
+
+      // Test initialization
+      testDestination.integration?.init!();
+
+      expect(defaultLogger.info).toHaveBeenCalledWith('Initializing CustomAnalytics integration');
+      expect(defaultLogger.debug).toHaveBeenCalledWith(
+        'CustomAnalytics: Found user user-123 with ID anon-456',
+      );
+      expect(defaultLogger.info).toHaveBeenCalledWith(
+        'CustomAnalytics integration initialized successfully',
+      );
+      expect(isInitialized).toBe(true);
+      expect((global as any).customAnalytics).toEqual({
+        userId: 'user-123',
+        anonymousId: 'anon-456',
+        ready: true,
+      });
+
+      // Test isReady
+      const readyStatus = testDestination.integration?.isReady();
+      expect(readyStatus).toBe(true);
+      expect(defaultLogger.debug).toHaveBeenCalledWith('CustomAnalytics: Checking ready status');
+      expect(defaultLogger.debug).toHaveBeenCalledWith('CustomAnalytics: Ready status = true');
+
+      // Test track event
+      const trackEvent = {
+        message: {
+          type: 'track',
+          event: 'Purchase Completed',
+          properties: { value: 99.99, currency: 'USD' },
+        },
+      };
+
+      testDestination.integration?.track!(trackEvent as any);
+
+      expect(defaultLogger.debug).toHaveBeenCalledWith(
+        'CustomAnalytics: Processing track event',
+        trackEvent.message,
+      );
+      expect(defaultLogger.info).toHaveBeenCalledWith(
+        'CustomAnalytics: Successfully tracked event "Purchase Completed"',
+      );
+      expect(trackedEvents).toHaveLength(1);
+      expect(trackedEvents[0]).toMatchObject({
+        type: 'track',
+        event: 'Purchase Completed',
+        properties: { value: 99.99, currency: 'USD' },
+        userId: 'user-123',
+        sessionId: 12345,
+        processed: true,
+      });
+
+      // Test page event
+      const pageEvent = {
+        message: {
+          type: 'page',
+          name: 'Product Details',
+          properties: { product_id: 'prod-123' },
+        },
+      };
+
+      testDestination.integration?.page!(pageEvent as any);
+
+      expect(defaultLogger.debug).toHaveBeenCalledWith(
+        'CustomAnalytics: Processing page event',
+        pageEvent.message,
+      );
+      expect(defaultLogger.info).toHaveBeenCalledWith(
+        'CustomAnalytics: Successfully tracked page "Product Details"',
+      );
+      expect(trackedEvents).toHaveLength(2);
+      expect(trackedEvents[1]).toMatchObject({
+        type: 'page_view',
+        name: 'Product Details',
+        properties: { product_id: 'prod-123' },
+        userTraits: { name: 'John Doe', email: 'john@example.com' },
+      });
+
+      // Test identify event
+      const identifyEvent = {
+        message: {
+          type: 'identify',
+          userId: 'user-123',
+          traits: { name: 'John Doe', email: 'john@example.com', plan: 'premium' },
+        },
+      };
+
+      testDestination.integration?.identify!(identifyEvent as any);
+
+      expect(defaultLogger.debug).toHaveBeenCalledWith(
+        'CustomAnalytics: Processing identify event',
+        identifyEvent.message,
+      );
+      expect(defaultLogger.info).toHaveBeenCalledWith(
+        'CustomAnalytics: Updating profile for user user-123',
+        { name: 'John Doe', email: 'john@example.com', plan: 'premium' },
+      );
+
+      // Verify analytics API calls
+      expect(mockAnalyticsInstance.getUserId).toHaveBeenCalledTimes(2); // init, track
+      expect(mockAnalyticsInstance.getAnonymousId).toHaveBeenCalledTimes(1); // init
+      expect(mockAnalyticsInstance.getSessionId).toHaveBeenCalledTimes(1); // track
+      expect(mockAnalyticsInstance.getUserTraits).toHaveBeenCalledTimes(1); // page
+
+      // Cleanup
+      delete (global as any).customAnalytics;
+    });
+
+    it('should clone logger to avoid conflicts with main logger', () => {
+      const testDestination: Destination = {
+        id: 'cloned-logger-dest',
+        displayName: 'Custom Device Mode',
+        userFriendlyId: 'cloned-logger-dest',
+        enabled: true,
+        shouldApplyDeviceModeTransformation: false,
+        propagateEventsUntransformedOnError: false,
+        config: {
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable' as const,
+          connectionMode: 'device' as const,
+          consentManagement: [],
+        },
+      };
+
+      const mockInit = jest.fn();
+      const mockIntegration = {
+        init: mockInit,
+        isReady: jest.fn().mockReturnValue(true),
+      };
+
+      addIntegrationToDestination(testDestination, mockIntegration, state, defaultLogger);
+
+      // Call the integration init to get the logger
+      testDestination.integration?.init!();
+
+      // Get the logger argument from the init function call
+      const loggerArg = mockInit.mock.calls[0][1];
+      expect(loggerArg).not.toBe(defaultLogger);
+    });
+
+    it('should create RSALogger with bound methods', () => {
+      const testDestination: Destination = {
+        id: 'bound-methods-dest',
+        displayName: 'Custom Device Mode',
+        userFriendlyId: 'bound-methods-dest',
+        enabled: true,
+        shouldApplyDeviceModeTransformation: false,
+        propagateEventsUntransformedOnError: false,
+        config: {
+          blacklistedEvents: [],
+          whitelistedEvents: [],
+          eventFilteringOption: 'disable' as const,
+          connectionMode: 'device' as const,
+          consentManagement: [],
+        },
+      };
+
+      const mockInit = jest.fn();
+      const mockTrack = jest.fn();
+      const mockPage = jest.fn();
+      const mockIdentify = jest.fn();
+      const mockGroup = jest.fn();
+      const mockAlias = jest.fn();
+      const mockIsReady = jest.fn();
+      const mockIntegration = {
+        init: mockInit,
+        isReady: mockIsReady,
+        track: mockTrack,
+        page: mockPage,
+        identify: mockIdentify,
+        group: mockGroup,
+        alias: mockAlias,
+      };
+
+      addIntegrationToDestination(testDestination, mockIntegration, state, defaultLogger);
+
+      // Call the integration init to get the logger
+      testDestination.integration?.init!();
+
+      // Verify that the logger methods are bound functions
+      const loggerArg = mockInit.mock.calls[0][2];
+
+      // Test that the logger methods are properly bound by verifying they're functions
+      // and that calling them invokes the original logger methods
+      expect(typeof loggerArg.log).toBe('function');
+      expect(typeof loggerArg.info).toBe('function');
+      expect(typeof loggerArg.debug).toBe('function');
+      expect(typeof loggerArg.warn).toBe('function');
+      expect(typeof loggerArg.error).toBe('function');
+      expect(typeof loggerArg.setMinLogLevel).toBe('function');
+
+      // Test that calling the bound methods actually calls the original logger methods
+      loggerArg.log('test message');
+      expect(defaultLogger.log).toHaveBeenCalledWith('test message');
+
+      loggerArg.info('test info');
+      expect(defaultLogger.info).toHaveBeenCalledWith('test info');
+
+      loggerArg.debug('test debug');
+      expect(defaultLogger.debug).toHaveBeenCalledWith('test debug');
+
+      loggerArg.warn('test warn');
+      expect(defaultLogger.warn).toHaveBeenCalledWith('test warn');
+
+      loggerArg.error('test error');
+      expect(defaultLogger.error).toHaveBeenCalledWith('test error');
+
+      // Verify that only the expected methods are present (no extra logger methods)
+      const loggerKeys = Object.keys(loggerArg);
+      expect(loggerKeys).toEqual(['log', 'info', 'debug', 'warn', 'error', 'setMinLogLevel']);
+
+      // Verify that all the remaining integration methods also get the same logger instance
+      testDestination.integration?.isReady!();
+      expect(mockIsReady.mock.calls[0][1]).toBe(loggerArg);
+
+      testDestination.integration?.track!({} as any);
+      expect(mockTrack.mock.calls[0][0]).toBe(mockAnalyticsInstance);
+      expect(mockTrack.mock.calls[0][1]).toBe(loggerArg);
+
+      testDestination.integration?.page!({} as any);
+      expect(mockPage.mock.calls[0][0]).toBe(mockAnalyticsInstance);
+      expect(mockPage.mock.calls[0][1]).toBe(loggerArg);
+
+      testDestination.integration?.identify!({} as any);
+      expect(mockIdentify.mock.calls[0][0]).toBe(mockAnalyticsInstance);
+      expect(mockIdentify.mock.calls[0][1]).toBe(loggerArg);
+
+      testDestination.integration?.group!({} as any);
+      expect(mockGroup.mock.calls[0][0]).toBe(mockAnalyticsInstance);
+      expect(mockGroup.mock.calls[0][1]).toBe(loggerArg);
+
+      testDestination.integration?.alias!({} as any);
+      expect(mockAlias.mock.calls[0][0]).toBe(mockAnalyticsInstance);
+      expect(mockAlias.mock.calls[0][1]).toBe(loggerArg);
+    });
+  });
+});

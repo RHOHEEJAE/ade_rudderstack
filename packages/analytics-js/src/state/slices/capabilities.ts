@@ -1,0 +1,20 @@
+import { signal } from '@preact/signals-core';
+import type { CapabilitiesState } from '@rudderstack/analytics-js-common/types/ApplicationState';
+
+const capabilitiesState: CapabilitiesState = {
+  isOnline: signal(true),
+  storage: {
+    isLocalStorageAvailable: signal(false),
+    isCookieStorageAvailable: signal(false),
+    isSessionStorageAvailable: signal(false),
+  },
+  isBeaconAvailable: signal(false),
+  isLegacyDOM: signal(false),
+  isUaCHAvailable: signal(false),
+  isCryptoAvailable: signal(false),
+  isAdBlockerDetectionInProgress: signal<boolean>(false),
+  isAdBlocked: signal<boolean | undefined>(undefined),
+  cspBlockedURLs: signal<string[]>([]),
+};
+
+export { capabilitiesState };

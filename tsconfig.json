@@ -1,0 +1,68 @@
+{
+  "extends": "./tsconfig.paths.json",
+  "compilerOptions": {
+    "baseUrl": "./",
+    "paths": {
+      "@rudderstack/analytics-js/*": ["./packages/analytics-js/src/*"],
+      "@rudderstack/analytics-js-common/*": ["./packages/analytics-js-common/src/*"],
+      "@rudderstack/analytics-js-integrations/*": ["./packages/analytics-js-integrations/src/*"],
+      "@rudderstack/analytics-js-plugins/*": ["./packages/analytics-js-plugins/src/*"],
+      "@rudderstack/analytics-js-service-worker/*": [
+        "./packages/analytics-js-service-worker/src/*"
+      ],
+      "rudder-sdk-js/*": ["./packages/analytics-v1.1/src/*"],
+      "@rudderstack/analytics-js-loading-script/*": ["./packages/loading-scripts/src/*"],
+      "@rudderstack/analytics-js-sanity-suite/*": ["./packages/sanity-suite/src/*"],
+      "@rudderstack/analytics-js-cookies/*": ["./packages/analytics-js-cookies/src/*"],
+      "@rudderstack/analytics-js-legacy-utilities/*": [
+        "./packages/analytics-js-legacy-utilities/src/*"
+      ]
+    },
+    "composite": true,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "noImplicitAny": true,
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "es2022"],
+    "declaration": true,
+    "declarationMap": true,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "typeRoots": ["./node_modules/@types", "./types"],
+    "types": ["node"],
+    "rootDirs": ["packages"],
+    "downlevelIteration": true,
+    "sourceMap": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "ignoreDeprecations": "6.0"
+  },
+  "include": [
+    "packages/**/src/**/*",
+    "packages/**/__mocks__/**/*",
+    "packages/**/__fixtures__/**/*",
+    "packages/**/__tests__/**/*",
+    "packages/**/scripts/**/*.js",
+    "types/**/*",
+    "scripts/**/*",
+    "*.config.js",
+    "*.config.mjs",
+    "*.config.ts",
+    "*.preset.js",
+    "*.preset.ts",
+    "tsconfig.paths.json",
+    "packages/**/*.config.js",
+    "packages/**/*.config.ts"
+  ],
+  "exclude": ["**/node_modules", "**/dist"]
+}

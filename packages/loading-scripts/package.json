@@ -1,0 +1,58 @@
+{
+  "name": "@rudderstack/analytics-js-loading-scripts",
+  "version": "3.3.0",
+  "private": true,
+  "description": "Loading script for RudderStack JavaScript SDK",
+  "main": "./src/index.ts",
+  "keywords": [
+    "analytics",
+    "rudder"
+  ],
+  "author": "RudderStack",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rudderlabs/rudder-sdk-js.git",
+    "directory": "packages/loading-scripts"
+  },
+  "bugs": {
+    "url": "https://github.com/rudderlabs/rudder-sdk-js/issues"
+  },
+  "homepage": "https://github.com/rudderlabs/rudder-sdk-js/blob/main/packages/loading-scripts/README.md",
+  "scripts": {
+    "clean": "rimraf -rf ./dist && rimraf -rf ./node_modules/.cache && rimraf -rf ./reports",
+    "start": "rollup -c --watch --environment DEV_SERVER",
+    "build": "npm run build:browser && npm run build:package",
+    "build:modern": "npm run build:browser:modern && npm run build:package:modern",
+    "build:browser:modern": "rollup -c --environment VERSION:$npm_package_version,UGLIFY",
+    "build:browser": "rollup -c --environment VERSION:$npm_package_version",
+    "build:package": "exit 0",
+    "build:package:modern": "exit 0",
+    "test": "nx test --maxWorkers=50%",
+    "test:ci": "nx test --configuration=ci --runInBand --maxWorkers=1 --forceExit",
+    "check:lint": "nx lint",
+    "check:lint:ci": "nx lint --configuration=ci",
+    "check:size:build": "npm run build:browser && npm run build:browser:modern && npm run build:package && npm run build:package:modern",
+    "check:size": "npm run check:size:build && size-limit",
+    "check:size:json": "size-limit --json",
+    "check:circular": "madge --circular --extensions js,ts src || exit 0",
+    "check:support": "NODE_ENV=production npx browserslist --mobile-to-desktop",
+    "check:support:modern": "exit 0",
+    "check:duplicates": "jscpd src",
+    "check:security": "npm audit --audit-level=high"
+  },
+  "dependencies": {
+    "@rudderstack/analytics-js": "*"
+  },
+  "devDependencies": {},
+  "overrides": {},
+  "browserslist": {
+    "production": [
+      "> 0.1%",
+      "IE >= 11"
+    ],
+    "modern": [
+      "defaults and supports es6-module-dynamic-import and not dead"
+    ]
+  }
+}

@@ -1,0 +1,270 @@
+import { dummyCDNHost, SDK_FILE_NAME } from '../__fixtures__/fixtures';
+import { loadingSnippet } from './nativeSdkLoader';
+import { server } from '../__fixtures__/msw.server';
+import type { RudderEvent } from '@rudderstack/analytics-js-common/types/Event';
+import type { LoadOptions } from '@rudderstack/analytics-js-common/types/LoadOptions';
+
+type SentTrackEvent = Pick<RudderEvent, 'event' | 'context'>;
+
+const isSentTrackEvent = (value: unknown): value is SentTrackEvent => {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  return (
+    'event' in value &&
+    typeof value.event === 'string' &&
+    'context' in value &&
+    typeof value.context === 'object' &&
+    value.context !== null
+  );
+};
+
+describe('Test suite for the SDK', () => {
+  beforeAll(() => {
+    // Start the server before running the tests
+    // This is necessary to serve the local SDK script on the dummy CDN host
+    server.listen();
+  });
+
+  afterAll(() => {
+    server.close();
+  });
+
+  const WRITE_KEY = 'write-key';
+  const DATA_PLANE_URL = 'https://example.dataplane.com';
+  const SDK_READY_TIMEOUT = 5000; // 5 seconds
+
+  const MOCK_SOURCE_CONFIGURATION = {
+    updatedAt: new Date().toISOString(),
+    source: {
+      name: 'source-name',
+      id: 'source-id',
+      workspaceId: 'workspace-id',
+      writeKey: WRITE_KEY,
+      updatedAt: new Date().toISOString(),
+      config: {
+        statsCollection: {
+          errors: {
+            enabled: false,
+          },
+          metrics: {
+            enabled: false,
+          },
+        },
+      },
+      enabled: true,
+      destinations: [],
+    },
+  };
+
+  const xhrMock: any = {
+    open: jest.fn(),
+    setRequestHeader: jest.fn(),
+    onload: jest.fn(),
+    onreadystatechange: jest.fn(),
+    responseText: JSON.stringify(MOCK_SOURCE_CONFIGURATION),
+    status: 200,
+    send: jest.fn(() => xhrMock.onload()),
+  };
+
+  const USER_ID = 'user-id';
+  const USER_TRAITS = {
+    'user-trait-key-1': 'user-trait-value-1',
+    'user-trait-key-2': 'user-trait-value-2',
+  };
+
+  const USER_GROUP_ID = 'group-id';
+  const USER_GROUP_TRAITS = {
+    'group-trait-key-1': 'group-trait-value-1',
+    'group-trait-key-2': 'group-trait-value-2',
+  };
+
+  const loadSDKScript = (options: Partial<LoadOptions> = {}) => {
+    loadingSnippet(dummyCDNHost, SDK_FILE_NAME, WRITE_KEY, DATA_PLANE_URL, options);
+  };
+
+  const getSentEvents = (): SentTrackEvent[] =>
+    xhrMock.send.mock.calls
+      .map(([body]: [unknown]) => {
+        if (typeof body !== 'string') {
+          return undefined;
+        }
+
+        try {
+          const parsedBody: unknown = JSON.parse(body);
+          return isSentTrackEvent(parsedBody) ? parsedBody : undefined;
+        } catch {
+          return undefined;
+        }
+      })
+      .filter((body: SentTrackEvent | undefined): body is SentTrackEvent => body !== undefined);
+
+  const waitForSDKReady = async () => {
+    const readyPromise = new Promise((resolve, reject) => {
+      // eslint-disable-next-line sonarjs/no-nested-functions
+      window.rudderanalytics?.ready(() => resolve(true));
+
+      setTimeout(
+        () => reject(new Error('The SDK did not become ready within the timeout')),
+        SDK_READY_TIMEOUT,
+      );
+    });
+
+    await readyPromise;
+  };
+
+  const originalXMLHttpRequest = window.XMLHttpRequest;
+
+  beforeEach(() => {
+    // Mocking the xhr function
+    window.XMLHttpRequest = jest.fn(() => xhrMock) as unknown as typeof XMLHttpRequest;
+  });
+
+  afterEach(() => {
+    jest.resetModules();
+    jest.clearAllMocks();
+
+    window.rudderanalytics = undefined;
+
+    window.XMLHttpRequest = originalXMLHttpRequest;
+  });
+
+  describe('preload buffer', () => {
+    it('should process the buffered API calls when SDK script is loaded', async () => {
+      loadSDKScript();
+
+      // Queue up some API calls before the SDK script is loaded
+      window.rudderanalytics?.page();
+      window.rudderanalytics?.track('test-event');
+
+      await waitForSDKReady();
+
+      expect((window.rudderanalytics as any).push).not.toBe(Array.prototype.push);
+
+      // one source configuration request, one page request, and one track request
+      expect(xhrMock.send).toHaveBeenCalledTimes(3);
+    });
+
+    it('applies load, set, and clear context in preload invocation order', async () => {
+      loadSDKScript({ context: { version: 'load-time' } });
+
+      window.rudderanalytics?.track('before-runtime-update');
+      window.rudderanalytics?.setCustomContext({ version: 'runtime' });
+      window.rudderanalytics?.track('after-runtime-update');
+      window.rudderanalytics?.clearCustomContext();
+      window.rudderanalytics?.track('after-clear');
+
+      await waitForSDKReady();
+
+      const eventsByName = Object.fromEntries(getSentEvents().map(event => [event.event, event]));
+
+      expect(eventsByName['before-runtime-update']?.context).toMatchObject({
+        version: 'load-time',
+      });
+      expect(eventsByName['after-runtime-update']?.context).toMatchObject({
+        version: 'runtime',
+      });
+      expect(eventsByName['after-clear']?.context).not.toHaveProperty('version');
+    });
+  });
+
+  describe('api', () => {
+    beforeEach(async () => {
+      loadSDKScript();
+
+      await waitForSDKReady();
+    });
+
+    it('should make network requests when event APIs are invoked', () => {
+      window.rudderanalytics?.page();
+      window.rudderanalytics?.track('test-event');
+      window.rudderanalytics?.identify(USER_ID, USER_TRAITS);
+      window.rudderanalytics?.group(USER_GROUP_ID, USER_GROUP_TRAITS);
+      window.rudderanalytics?.alias('new-user-id', USER_ID);
+
+      // one source config endpoint call and individual event requests
+      expect(xhrMock.send).toHaveBeenCalledTimes(6);
+    });
+
+    describe('getAnonymousId', () => {
+      it('should return a new UUID when no prior persisted data is present', () => {
+        const anonId = window.rudderanalytics?.getAnonymousId();
+
+        const uuidRegEx = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[\da-f]{4}-[\da-f]{12}$/i;
+        expect(anonId).toMatch(uuidRegEx);
+      });
+
+      it('should persist the anonymous ID generated by the SDK', () => {
+        const anonIdRes1 = window.rudderanalytics?.getAnonymousId();
+
+        // SDK remembers the previously generated anonymous ID and returns the same value
+        const anonIdRes2 = window.rudderanalytics?.getAnonymousId();
+
+        expect(anonIdRes1).toEqual(anonIdRes2);
+      });
+    });
+
+    describe('reset', () => {
+      it('should clear all the persisted data except for anonymous ID when the flag is not set', () => {
+        // Make identify and group API calls to let the SDK persist
+        // user (ID and traits) and group data (ID and traits)
+        window.rudderanalytics?.identify(USER_ID, USER_TRAITS);
+        window.rudderanalytics?.group(USER_GROUP_ID, USER_GROUP_TRAITS);
+
+        const anonId = 'anon-ID';
+        window.rudderanalytics?.setAnonymousId(anonId);
+
+        // SDK clears all the persisted data except for anonymous ID
+        window.rudderanalytics?.reset();
+
+        // SDK remembers the previously generated anonymous ID and returns the same value
+        const anonIdRes = window.rudderanalytics?.getAnonymousId();
+
+        expect(anonId).toEqual(anonIdRes);
+        expect(window.rudderanalytics?.getUserId()).toEqual('');
+        expect(window.rudderanalytics?.getUserTraits()).toEqual({});
+        expect(window.rudderanalytics?.getGroupId()).toEqual('');
+        expect(window.rudderanalytics?.getGroupTraits()).toEqual({});
+      });
+
+      it('should clear all the persisted data include anonymous ID when the flag is set', () => {
+        // Make identify and group API calls to let the SDK persist
+        // user (ID and traits) and group data (ID and traits)
+        window.rudderanalytics?.identify(USER_ID, USER_TRAITS);
+        window.rudderanalytics?.group(USER_GROUP_ID, USER_GROUP_TRAITS);
+
+        const anonId = 'anon-ID';
+        window.rudderanalytics?.setAnonymousId(anonId);
+
+        // SDK clears all the persisted data
+        window.rudderanalytics?.reset(true);
+
+        // SDK remembers the previously generated anonymous ID and returns the same value
+        const anonIdRes = window.rudderanalytics?.getAnonymousId();
+
+        expect(anonId).not.toEqual(anonIdRes);
+        expect(window.rudderanalytics?.getUserId()).toEqual('');
+        expect(window.rudderanalytics?.getUserTraits()).toEqual({});
+        expect(window.rudderanalytics?.getGroupId()).toEqual('');
+        expect(window.rudderanalytics?.getGroupTraits()).toEqual({});
+      });
+    });
+
+    describe('custom context', () => {
+      it('should expose the custom context APIs on the browser global', () => {
+        expect(window.rudderanalytics?.setCustomContext).toEqual(expect.any(Function));
+        expect(window.rudderanalytics?.getCustomContext).toEqual(expect.any(Function));
+        expect(window.rudderanalytics?.clearCustomContext).toEqual(expect.any(Function));
+      });
+
+      it('should update, read, and clear custom context', () => {
+        window.rudderanalytics?.setCustomContext({ region: 'EU' });
+        expect(window.rudderanalytics?.getCustomContext()).toEqual({ region: 'EU' });
+
+        window.rudderanalytics?.clearCustomContext();
+        expect(window.rudderanalytics?.getCustomContext()).toEqual({});
+      });
+    });
+  });
+});
