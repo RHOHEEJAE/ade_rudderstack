@@ -933,8 +933,8 @@ describe('Core - Rudder Analytics Facade', () => {
       simulatePageBeingUnloadedAfterSDKLoad();
 
       expect(rudderAnalyticsInstance.track).toHaveBeenCalledWith(
-        'Page Unloaded',
-        { timeOnPage: expect.any(Number) },
+        'ade_page_unloaded',
+        { time_on_page: expect.any(Number) },
         { originalTimestamp: expect.any(String), key: 'value' },
       );
 
@@ -959,8 +959,8 @@ describe('Core - Rudder Analytics Facade', () => {
       simulatePageBeingUnloadedAfterSDKLoad();
 
       expect(rudderAnalyticsInstance.track).toHaveBeenCalledWith(
-        'Page Unloaded',
-        { timeOnPage: expect.any(Number) },
+        'ade_page_unloaded',
+        { time_on_page: expect.any(Number) },
         { originalTimestamp: expect.any(String), key: 'value2' },
       );
 
@@ -991,8 +991,8 @@ describe('Core - Rudder Analytics Facade', () => {
       simulatePageBeingUnloadedAfterSDKLoad();
 
       expect(rudderAnalyticsInstance.track).toHaveBeenCalledWith(
-        'Page Unloaded',
-        { timeOnPage: 1500 },
+        'ade_page_unloaded',
+        { time_on_page: 1500 },
         { originalTimestamp: '1970-01-01T00:00:01.500Z', key: 'value' },
       );
 

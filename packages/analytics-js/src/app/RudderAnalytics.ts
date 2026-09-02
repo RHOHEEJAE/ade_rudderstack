@@ -280,14 +280,14 @@ class RudderAnalytics implements IRudderAnalytics<IAnalytics> {
         onPageLeave((isAccessible: boolean) => {
           if (isAccessible === false && state.lifecycle.loaded.value) {
             const pageUnloadedTimestamp = Date.now();
-            const timeOnPage =
+            const time_on_page =
               pageUnloadedTimestamp -
               (state.autoTrack.pageLifecycle.pageLoadedTimestamp.value as number);
 
             this.track(
               PageLifecycleEvents.UNLOADED,
               {
-                timeOnPage,
+                time_on_page,
               },
               {
                 ...options,

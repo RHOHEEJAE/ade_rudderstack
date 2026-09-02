@@ -116,7 +116,7 @@ export type PreConsentOptions = {
 };
 
 export enum PageLifecycleEvents {
-  UNLOADED = 'Page Unloaded',
+  UNLOADED = 'ade_page_unloaded',
 }
 
 export type PageLifecycleOptions = {
